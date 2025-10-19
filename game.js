@@ -41,6 +41,20 @@ class Game {
         this.critChance = 0;
         this.ballType = BallTypes.NORMAL;  // 공 타입
         
+        // 새로운 스킬 시스템
+        this.chainLightning = false;  // 체인 라이트닝
+        this.chainLightningCount = 0;
+        this.brickSpeedMultiplier = 1.0;  // 슬로우 필드
+        this.deflectShield = false;  // 디플렉트 쉴드
+        this.deflectShieldActive = false;
+        this.deflectShieldCooldown = 0;
+        this.scoreMultiplier = 1.0;  // 황금 배증
+        this.critMultiplier = 2.0;  // 크리티컬 배수 (기본 2배)
+        this.whirlwindActive = false;  // 소용돌이
+        this.shockwaveActive = false;  // 진동파
+        this.shockwaveCounter = 0;
+        this.goldenBallChance = 0;  // 황금알
+        
         // 드롭 아이템 시스템
         this.dropItems = [];
         this.slowTimeEnd = 0;  // 슬로우 타임 종료 시간
@@ -167,10 +181,22 @@ class Game {
     this.boss = null;  // 보스 초기화
     this.isBossStage = false;  // 보스 스테이지 초기화
     this.brickSpeed = 1.2;
+    this.brickSpeedMultiplier = 1.0;
     this.brickSpawnInterval = 1200;
     this.shooterX = this.canvas.width / 2;
         this.lastFireTime = 0;
         this.ballType = BallTypes.NORMAL;  // 공 타입 초기화
+        this.chainLightning = false;
+        this.chainLightningCount = 0;
+        this.deflectShield = false;
+        this.deflectShieldActive = false;
+        this.deflectShieldCooldown = 0;
+        this.scoreMultiplier = 1.0;
+        this.critMultiplier = 2.0;
+        this.whirlwindActive = false;
+        this.shockwaveActive = false;
+        this.shockwaveCounter = 0;
+        this.goldenBallChance = 0;
         this.updateUI();
     }
     
@@ -196,6 +222,11 @@ class Game {
         const shooterY = this.canvas.height - 50;
         const damage = Math.floor(this.damage);
         
+        // 진동파 스킬 발동
+        if (this.shockwaveActive) {
+            this.triggerShockwave();
+        }
+        
         // 멀티샷 구현 - 각도로 발사
         const angleSpread = 0.3;  // 각도 간격
         for (let i = 0; i < this.multiShot; i++) {
@@ -206,15 +237,20 @@ class Game {
             // 공 타입 속도 적용
             const speedMultiplier = this.ballType.speed || 1.0;
             
+            // 황금알 확률 확인
+            const isGoldenBall = Math.random() < this.goldenBallChance;
+            
             this.balls.push({
                 x: this.shooterX,
                 y: shooterY,
                 vx: vx * speedMultiplier,
                 vy: vy * speedMultiplier,
                 radius: this.ballType.size || 8,
-                damage: damage,
+                damage: isGoldenBall ? damage * 2 : damage,
                 type: this.ballType,
-                color: this.ballType.color
+                color: isGoldenBall ? '#FFD700' : this.ballType.color,
+                isGolden: isGoldenBall,
+                rotation: 0  // 소용돌이용 회전각
             });
         }
     }
@@ -370,8 +406,8 @@ class Game {
         for (let i = this.bricks.length - 1; i >= 0; i--) {
             const brick = this.bricks[i];
             
-            // 슬로우 타임 적용 (70% 느려짐 = 30% 속도)
-            let brickSpeed = brick.speed;
+            // 슬로우 필드 + 슬로우 타임 적용
+            let brickSpeed = brick.speed * this.brickSpeedMultiplier;
             if (currentTime < this.slowTimeEnd) {
                 brickSpeed *= 0.3;
             }
@@ -382,6 +418,15 @@ class Game {
             if (brick.y > this.canvas.height) {
                 this.gameOver();
                 return;
+            }
+        }
+        
+        // 디플렉트 쉴드 쿨다운 감소
+        if (this.deflectShield && this.deflectShieldCooldown > 0) {
+            this.deflectShieldCooldown -= deltaTime * 1000;
+            if (this.deflectShieldCooldown <= 0) {
+                this.deflectShieldActive = true;
+                this.deflectShieldCooldown = 0;
             }
         }
         
@@ -403,7 +448,7 @@ class Game {
             if (this.boss && this.checkCollision(ball, this.boss)) {
                 // 크리티컬 확인
                 const isCrit = Math.random() < this.critChance;
-                let actualDamage = isCrit ? ball.damage * 2 : ball.damage;
+                let actualDamage = isCrit ? ball.damage * this.critMultiplier : ball.damage;
                 
                 // 크리티컬 이펙트
                 if (isCrit) {
@@ -441,8 +486,15 @@ class Game {
                     // 보스 파괴
                     const now = Date.now();
                     let baseScore = 500 * (1 + this.level * 0.5);  // 보스는 많은 점수 제공
-                    this.score += Math.floor(baseScore);
-                    this.addFloatingText(`+${Math.floor(baseScore)}`, this.boss.x + this.boss.width / 2, this.boss.y, '#ffd700', 24, 1200);
+                    let finalScore = Math.floor(baseScore * this.scoreMultiplier);
+                    
+                    // 황금 공 추가 보너스
+                    if (ball.isGolden) {
+                        finalScore *= 2;
+                    }
+                    
+                    this.score += finalScore;
+                    this.addFloatingText(`+${finalScore}`, this.boss.x + this.boss.width / 2, this.boss.y, '#ffd700', 24, 1200);
                     
                     // 보스 보상: 많은 경험치
                     const expGain = Math.floor(100 + this.level * 10);
@@ -477,22 +529,34 @@ class Game {
                 if (this.checkCollision(ball, brick)) {
                     // 크리티컬 확인
                     const isCrit = Math.random() < this.critChance;
-                    let actualDamage = isCrit ? ball.damage * 2 : ball.damage;
+                    let actualDamage = isCrit ? ball.damage * this.critMultiplier : ball.damage;
                     
                     brick.hp -= actualDamage;
                     
                     // 파티클 생성
                     this.createParticles(ball.x, ball.y, isCrit ? '#ffff00' : '#ffffff');
                     
+                    // 체인 라이트닝 효과
+                    if (this.chainLightning && isCrit) {
+                        this.triggerChainLightning(brick);
+                    }
+                    
                     if (brick.hp <= 0) {
                         // 벽돌 파괴
                         
                         const now = Date.now();
                         let baseScore = 10 * (1 + this.level * 0.5);  // 레벨에 따라 점수 증가
-                        this.score += Math.floor(baseScore);
+                        let finalScore = Math.floor(baseScore * this.scoreMultiplier);
+                        
+                        // 황금 공 추가 보너스
+                        if (ball.isGolden) {
+                            finalScore *= 2;
+                        }
+                        
+                        this.score += finalScore;
                         
                         // 점수 플로팅 텍스트
-                        this.addFloatingText(`+${Math.floor(baseScore)}`, brick.x + brick.width / 2, brick.y, '#ffd700', 16, 800);
+                        this.addFloatingText(`+${finalScore}`, brick.x + brick.width / 2, brick.y, '#ffd700', 16, 800);
                         
                         // 경험치 획득
                         const expGain = Math.floor(10 + this.level * 2);  // 레벨에 따라 경험치 증가
@@ -567,6 +631,51 @@ class Game {
                 brick.hp -= this.damage * 0.5;
             }
         }
+    }
+    
+    // 체인 라이트닝 스킬
+    triggerChainLightning(targetBrick) {
+        const chainDistance = 150;
+        const damage = this.damage * 0.8;
+        let hit = [targetBrick];
+        
+        // 주변 벽돌에 번개 전파
+        for (const brick of this.bricks) {
+            if (hit.includes(brick)) continue;
+            
+            const dx = (brick.x + brick.width / 2) - (targetBrick.x + targetBrick.width / 2);
+            const dy = (brick.y + brick.height / 2) - (targetBrick.y + targetBrick.height / 2);
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance <= chainDistance) {
+                brick.hp -= damage;
+                hit.push(brick);
+                
+                // 번개 파티클
+                this.createParticles(brick.x + brick.width / 2, brick.y + brick.height / 2, '#00ffff', 8);
+                this.addFloatingText('⚡', brick.x + brick.width / 2, brick.y - 20, '#00ffff', 14, 500);
+            }
+        }
+    }
+    
+    // 진동파 스킬
+    triggerShockwave() {
+        const shockwaveDamage = this.damage * 0.6;
+        const shockwaveRadius = 200;
+        const shooterY = this.canvas.height - 50;
+        
+        // 모든 벽돌에 대미지
+        for (const brick of this.bricks) {
+            brick.hp -= shockwaveDamage;
+            
+            // 진동파 이펙트
+            this.createParticles(brick.x + brick.width / 2, brick.y + brick.height / 2, '#ff00ff', 5);
+        }
+        
+        // 화면에 진동파 비주얼
+        this.createParticles(this.shooterX, shooterY, '#ff00ff', 30);
+        this.screenFlash = 0.2;
+        this.backgroundShake = 5;
     }
     
     createParticles(x, y, color = '#ffffff', count = 10) {
@@ -800,6 +909,24 @@ class Game {
         this.ctx.lineWidth = 3;
         this.ctx.stroke();
         
+        // 디플렉트 쉴드 시각화
+        if (this.deflectShieldActive) {
+            this.ctx.strokeStyle = '#00ff00';
+            this.ctx.lineWidth = 3;
+            this.ctx.globalAlpha = 0.6;
+            this.ctx.beginPath();
+            this.ctx.arc(this.shooterX, shooterY, 40, 0, Math.PI * 2);
+            this.ctx.stroke();
+            this.ctx.globalAlpha = 1;
+            
+            // 쉴드 텍스트
+            this.ctx.fillStyle = '#00ff00';
+            this.ctx.font = 'bold 12px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'bottom';
+            this.ctx.fillText('SHIELD', this.shooterX, shooterY - 45);
+        }
+        
         // 플로팅 텍스트 렌더링
         const nowTime = Date.now();
         for (const floatingText of this.floatingTexts) {
@@ -846,7 +973,7 @@ class Game {
                         this.damage += 2;
                         this.upgradeHistory['damage'] = (this.upgradeHistory['damage'] || 0) + 1;
                     },
-                    synergy: { 'critChance': 0.05 }  // 크리티컬과 시너지
+                    synergy: { 'critChance': 0.05 }
                 },
                 { 
                     id: 'fireRate',
@@ -857,7 +984,7 @@ class Game {
                         this.fireRate += 0.5;
                         this.upgradeHistory['fireRate'] = (this.upgradeHistory['fireRate'] || 0) + 1;
                     },
-                    synergy: { 'multiShot': 0.15 }  // 멀티샷과 시너지
+                    synergy: { 'multiShot': 0.15 }
                 },
                 { 
                     id: 'multiShot',
@@ -868,7 +995,7 @@ class Game {
                         this.multiShot++;
                         this.upgradeHistory['multiShot'] = (this.upgradeHistory['multiShot'] || 0) + 1;
                     },
-                    synergy: { 'damage': 0.2, 'explosionRadius': 0.1 }  // 데미지, 폭발과 시너지
+                    synergy: { 'damage': 0.2, 'explosionRadius': 0.1 }
                 },
                 { 
                     id: 'explosion',
@@ -879,7 +1006,7 @@ class Game {
                         this.explosionRadius += 50;
                         this.upgradeHistory['explosion'] = (this.upgradeHistory['explosion'] || 0) + 1;
                     },
-                    synergy: { 'damage': 0.15 }  // 데미지와 시너지
+                    synergy: { 'damage': 0.15 }
                 },
                 { 
                     id: 'critChance',
@@ -890,7 +1017,97 @@ class Game {
                         this.critChance += 0.15;
                         this.upgradeHistory['critChance'] = (this.upgradeHistory['critChance'] || 0) + 1;
                     },
-                    synergy: { 'damage': 0.1 }  // 데미지와 시너지
+                    synergy: { 'damage': 0.1 }
+                },
+                {
+                    id: 'chainLightning',
+                    icon: '⚡',
+                    title: '체인 라이트닝',
+                    description: '공이 벽돌을 튕길 때 번개 발생',
+                    effect: () => {
+                        this.chainLightning = true;
+                        this.chainLightningCount = (this.chainLightningCount || 0) + 1;
+                        this.upgradeHistory['chainLightning'] = (this.upgradeHistory['chainLightning'] || 0) + 1;
+                    },
+                    synergy: { 'multiShot': 0.2, 'fireRate': 0.1 }
+                },
+                {
+                    id: 'slowField',
+                    icon: '🌬️',
+                    title: '슬로우 필드',
+                    description: '모든 벽돌 속도 30% 감소',
+                    effect: () => {
+                        this.brickSpeedMultiplier = (this.brickSpeedMultiplier || 1.0) * 0.7;
+                        this.upgradeHistory['slowField'] = (this.upgradeHistory['slowField'] || 0) + 1;
+                    },
+                    synergy: { 'explosionRadius': 0.15 }
+                },
+                {
+                    id: 'deflectShield',
+                    icon: '🛡️',
+                    title: '디플렉트 쉴드',
+                    description: '10초마다 무적 상태 획득',
+                    effect: () => {
+                        this.deflectShield = true;
+                        this.deflectShieldCooldown = 10000;
+                        this.upgradeHistory['deflectShield'] = (this.upgradeHistory['deflectShield'] || 0) + 1;
+                    },
+                    synergy: { 'damage': 0.1 }
+                },
+                {
+                    id: 'goldMultiplier',
+                    icon: '💰',
+                    title: '황금 배증',
+                    description: '모든 점수 +50% 증가',
+                    effect: () => {
+                        this.scoreMultiplier = (this.scoreMultiplier || 1.0) * 1.5;
+                        this.upgradeHistory['goldMultiplier'] = (this.upgradeHistory['goldMultiplier'] || 0) + 1;
+                    },
+                    synergy: { 'damage': 0.05 }
+                },
+                {
+                    id: 'critialStrike',
+                    icon: '💎',
+                    title: '크리티컬 스트라이크',
+                    description: '크리티컬 시 3배 대미지 (기존 2배)',
+                    effect: () => {
+                        this.critMultiplier = (this.critMultiplier || 2.0) + 1;
+                        this.upgradeHistory['critialStrike'] = (this.upgradeHistory['critialStrike'] || 0) + 1;
+                    },
+                    synergy: { 'critChance': 0.3, 'damage': 0.15 }
+                },
+                {
+                    id: 'whirlwind',
+                    icon: '🌪️',
+                    title: '소용돌이',
+                    description: '공이 회전하며 범위 피해 증가',
+                    effect: () => {
+                        this.whirlwindActive = true;
+                        this.upgradeHistory['whirlwind'] = (this.upgradeHistory['whirlwind'] || 0) + 1;
+                    },
+                    synergy: { 'multiShot': 0.25, 'explosionRadius': 0.2 }
+                },
+                {
+                    id: 'shockwave',
+                    icon: '🔱',
+                    title: '진동파',
+                    description: '발사 시 전체 화면 진동파 발생',
+                    effect: () => {
+                        this.shockwaveActive = true;
+                        this.upgradeHistory['shockwave'] = (this.upgradeHistory['shockwave'] || 0) + 1;
+                    },
+                    synergy: { 'fireRate': 0.2, 'damage': 0.1 }
+                },
+                {
+                    id: 'goldenBall',
+                    icon: '🟡',
+                    title: '황금알',
+                    description: '황금 공 생성: 2배 점수 & 대미지',
+                    effect: () => {
+                        this.goldenBallChance = (this.goldenBallChance || 0) + 0.25;
+                        this.upgradeHistory['goldenBall'] = (this.upgradeHistory['goldenBall'] || 0) + 1;
+                    },
+                    synergy: { 'goldMultiplier': 0.4, 'multiShot': 0.15 }
                 }
             ];
             
@@ -1330,9 +1547,27 @@ class Game {
         this.ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
         this.ctx.fill();
         
-        this.ctx.strokeStyle = '#fff';
-        this.ctx.lineWidth = 2;
+        // 황금알: 반짝이는 테두리
+        if (ball.isGolden) {
+            this.ctx.strokeStyle = '#FFED4E';
+            this.ctx.lineWidth = 3;
+        } else {
+            this.ctx.strokeStyle = '#fff';
+            this.ctx.lineWidth = 2;
+        }
         this.ctx.stroke();
+        
+        // 소용돌이 효과: 공 주위 원 회전
+        if (this.whirlwindActive && ball.rotation !== undefined) {
+            ball.rotation = (ball.rotation || 0) + 0.1;
+            this.ctx.strokeStyle = 'rgba(200, 100, 255, 0.3)';
+            this.ctx.lineWidth = 1;
+            this.ctx.setLineDash([5, 5]);
+            this.ctx.beginPath();
+            this.ctx.arc(ball.x, ball.y, ball.radius * 2.5, 0, Math.PI * 2);
+            this.ctx.stroke();
+            this.ctx.setLineDash([]);
+        }
         
         // 공 타입 이모지 표시
         if (ball.radius > 8 && ball.type && ball.type.emoji) {
@@ -1340,6 +1575,14 @@ class Game {
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
             this.ctx.fillText(ball.type.emoji, ball.x, ball.y);
+        }
+        
+        // 황금알 표시
+        if (ball.isGolden) {
+            this.ctx.font = `${Math.floor(ball.radius * 2)}px Arial`;
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText('✨', ball.x, ball.y);
         }
     }
     
