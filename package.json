@@ -1,0 +1,21 @@
+{
+  "name": "sodapop",
+  "version": "1.0.0",
+  "description": "하이퍼캐주얼 브릭 브레이커 게임",
+  "main": "index.html",
+  "scripts": {
+    "dev": "python3 -m http.server 8000",
+    "deploy": "vercel --prod"
+  },
+  "keywords": [
+    "game",
+    "hypercasual",
+    "brick-breaker",
+    "canvas"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "vercel": "^48.4.0"
+  }
+}

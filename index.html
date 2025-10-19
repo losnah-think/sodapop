@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SodaPop - 하이퍼캐주얼 브릭 브레이커</title>
+    <style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* 드래그 선택 방지 */
+body {
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+}
+
+#gameCanvas {
+    -webkit-touch-callout: none;
+    touch-action: none;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    overflow: hidden;
+}
+
+#game-container {
+    position: relative;
+    width: 100%;
+    max-width: 400px;
+    height: 700px;
+    background: #1a1a2e;
+    border-radius: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+}
+
+/* 게임 UI */
+#game-ui {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    padding: 15px;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
+    color: white;
+}
+
+.ui-top {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.score-display, .stage-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.label {
+    font-size: 12px;
+    opacity: 0.8;
+    margin-bottom: 3px;
+}
+
+#score, #stage {
+    font-size: 24px;
+    font-weight: bold;
+    color: #ffd700;
+}
+
+.ui-stats {
+    display: flex;
+    gap: 15px;
+    font-size: 12px;
+}
+
+.stat {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 5px 10px;
+    border-radius: 15px;
+}
+
+/* 캔버스 */
+#gameCanvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: #0f0f1e;
+}
+
+/* 차징 바 */
+#charge-bar-container {
+    position: absolute;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80%;
+    height: 20px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 10px;
+    overflow: hidden;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    opacity: 0;
+    transition: opacity 0.2s;
+    z-index: 5;
+}
+
+#charge-bar-container.visible {
+    opacity: 1;
+}
+
+#charge-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
+    border-radius: 10px;
+    transition: width 0.05s linear;
+    box-shadow: 0 0 10px rgba(0, 242, 254, 0.5);
+}
+
+/* 경험치 바 */
+#exp-bar-container {
+    width: 100%;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 8px 0;
+}
+
+#exp-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #ffd700 0%, #ffed4e 100%);
+    border-radius: 4px;
+    transition: width 0.2s ease;
+}
+
+/* 화면 공통 스타일 */
+.screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.95);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    color: white;
+    padding: 30px;
+    text-align: center;
+}
+
+.screen.hidden {
+    display: none;
+}
+
+.screen h1 {
+    font-size: 48px;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.subtitle {
+    font-size: 18px;
+    margin-bottom: 30px;
+    opacity: 0.8;
+}
+
+.instructions {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 20px;
+    border-radius: 15px;
+    margin-bottom: 30px;
+}
+
+.instructions p {
+    margin: 10px 0;
+    font-size: 14px;
+}
+
+.final-score, .final-stage, .stage-score {
+    font-size: 20px;
+    margin: 15px 0;
+}
+
+.final-score span, .final-stage span, .stage-score span {
+    color: #ffd700;
+    font-weight: bold;
+    font-size: 28px;
+}
+
+/* 버튼 */
+.btn-primary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 15px 40px;
+    font-size: 18px;
+    font-weight: bold;
+    border-radius: 30px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    margin: 5px;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(102, 126, 234, 0.6);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+}
+
+/* 카드 컨늨 */
+#card-container {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    margin-top: 20px;
+    width: 100%;
+    max-width: 350px;
+}
+
+.upgrade-card {
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    border-radius: 15px;
+    padding: 15px;
+    width: 100%;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+}
+
+.upgrade-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(255,255,255,0.1), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.upgrade-card:hover {
+    transform: translateY(-10px) scale(1.05);
+    border-color: #ffd700;
+    box-shadow: 0 10px 30px rgba(255, 215, 0, 0.3);
+}
+
+.upgrade-card:hover::before {
+    opacity: 1;
+}
+
+.card-icon {
+    font-size: 40px;
+    margin-bottom: 10px;
+}
+
+.card-title {
+    font-size: 16px;
+    font-weight: bold;
+    margin-bottom: 8px;
+    color: #ffd700;
+}
+
+.card-description {
+    font-size: 12px;
+    opacity: 0.9;
+    line-height: 1.4;
+}
+
+.card-instruction {
+    margin-bottom: 10px;
+    font-size: 16px;
+    opacity: 0.8;
+}
+
+/* 반응형 */
+@media (max-width: 480px) {
+    #game-container {
+        border-radius: 0;
+        max-width: 100%;
+        height: 100vh;
+    }
+}
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <!-- 게임 UI -->
+        <div id="game-ui">
+            <div class="ui-top">
+                <div class="score-display">
+                    <span class="label">점수</span>
+                    <span id="score">0</span>
+                </div>
+                <div class="stage-display">
+                    <span class="label">레벨</span>
+                    <span id="level">1</span>
+                </div>
+            </div>
+            
+            <!-- 경험치 바 -->
+            <div id="exp-bar-container">
+                <div id="exp-bar"></div>
+            </div>
+            
+            <div class="ui-stats">
+                <div class="stat">
+                    <span>💥 데미지:</span>
+                    <span id="damage">1</span>
+                </div>
+                <div class="stat">
+                    <span>⚡ 발사속도:</span>
+                    <span id="fireRate">1.0x</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 게임 캔버스 -->
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- 차징 바 -->
+        <div id="charge-bar-container">
+            <div id="charge-bar"></div>
+        </div>
+
+        <!-- 시작 화면 -->
+        <div id="start-screen" class="screen">
+            <h1>🥤 SodaPop</h1>
+            <p class="subtitle">벽돌을 부수고 강해지세요!</p>
+            <div class="instructions">
+                <p>🎮 마우스/터치로 발사기 이동</p>
+                <p>⚪ 자동으로 계속 발사!</p>
+                <p>📈 벽돌을 부수고 레벨업!</p>
+                <p>🎁 업그레이드로 강화하기!</p>
+            </div>
+            <button id="start-btn" class="btn-primary">게임 시작</button>
+        </div>
+
+        <!-- 게임 오버 화면 -->
+        <div id="gameover-screen" class="screen hidden">
+            <h1>게임 오버</h1>
+            <p class="final-score">최종 점수: <span id="final-score">0</span></p>
+            <p class="final-stage">도달 레벨: <span id="final-stage">1</span></p>
+            <button id="restart-btn" class="btn-primary">다시 시작</button>
+        </div>
+
+        <!-- 레벨업 화면 -->
+        <div id="stageclear-screen" class="screen hidden">
+            <h1>⬆️ 레벨업!</h1>
+            <p class="card-instruction">강화할 항목을 선택하세요</p>
+            <div id="card-container">
+                <!-- 카드들이 동적으로 생성됨 -->
+            </div>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
