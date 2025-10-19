@@ -48,12 +48,12 @@ class Game {
         this.deflectShield = false;  // 디플렉트 쉴드
         this.deflectShieldActive = false;
         this.deflectShieldCooldown = 0;
-        this.scoreMultiplier = 1.0;  // 황금 배증
         this.critMultiplier = 2.0;  // 크리티컬 배수 (기본 2배)
         this.whirlwindActive = false;  // 소용돌이
         this.shockwaveActive = false;  // 진동파
         this.shockwaveCounter = 0;
-        this.goldenBallChance = 0;  // 황금알
+        
+        // 드롭 아이템 시스템
         
         // 드롭 아이템 시스템
         this.dropItems = [];
@@ -196,7 +196,6 @@ class Game {
         this.whirlwindActive = false;
         this.shockwaveActive = false;
         this.shockwaveCounter = 0;
-        this.goldenBallChance = 0;
         this.updateUI();
     }
     
@@ -237,19 +236,15 @@ class Game {
             // 공 타입 속도 적용
             const speedMultiplier = this.ballType.speed || 1.0;
             
-            // 황금알 확률 확인
-            const isGoldenBall = Math.random() < this.goldenBallChance;
-            
             this.balls.push({
                 x: this.shooterX,
                 y: shooterY,
                 vx: vx * speedMultiplier,
                 vy: vy * speedMultiplier,
                 radius: this.ballType.size || 8,
-                damage: isGoldenBall ? damage * 2 : damage,
+                damage: damage,
                 type: this.ballType,
-                color: isGoldenBall ? '#FFD700' : this.ballType.color,
-                isGolden: isGoldenBall,
+                color: this.ballType.color,
                 rotation: 0  // 소용돌이용 회전각
             });
         }
@@ -486,15 +481,8 @@ class Game {
                     // 보스 파괴
                     const now = Date.now();
                     let baseScore = 500 * (1 + this.level * 0.5);  // 보스는 많은 점수 제공
-                    let finalScore = Math.floor(baseScore * this.scoreMultiplier);
-                    
-                    // 황금 공 추가 보너스
-                    if (ball.isGolden) {
-                        finalScore *= 2;
-                    }
-                    
-                    this.score += finalScore;
-                    this.addFloatingText(`+${finalScore}`, this.boss.x + this.boss.width / 2, this.boss.y, '#ffd700', 24, 1200);
+                    this.score += Math.floor(baseScore);
+                    this.addFloatingText(`+${Math.floor(baseScore)}`, this.boss.x + this.boss.width / 2, this.boss.y, '#ffd700', 24, 1200);
                     
                     // 보스 보상: 많은 경험치
                     const expGain = Math.floor(100 + this.level * 10);
@@ -546,17 +534,10 @@ class Game {
                         
                         const now = Date.now();
                         let baseScore = 10 * (1 + this.level * 0.5);  // 레벨에 따라 점수 증가
-                        let finalScore = Math.floor(baseScore * this.scoreMultiplier);
-                        
-                        // 황금 공 추가 보너스
-                        if (ball.isGolden) {
-                            finalScore *= 2;
-                        }
-                        
-                        this.score += finalScore;
+                        this.score += Math.floor(baseScore);
                         
                         // 점수 플로팅 텍스트
-                        this.addFloatingText(`+${finalScore}`, brick.x + brick.width / 2, brick.y, '#ffd700', 16, 800);
+                        this.addFloatingText(`+${Math.floor(baseScore)}`, brick.x + brick.width / 2, brick.y, '#ffd700', 16, 800);
                         
                         // 경험치 획득
                         const expGain = Math.floor(10 + this.level * 2);  // 레벨에 따라 경험치 증가
@@ -1055,17 +1036,6 @@ class Game {
                     synergy: { 'damage': 0.1 }
                 },
                 {
-                    id: 'goldMultiplier',
-                    icon: '💰',
-                    title: '황금 배증',
-                    description: '모든 점수 +50% 증가',
-                    effect: () => {
-                        this.scoreMultiplier = (this.scoreMultiplier || 1.0) * 1.5;
-                        this.upgradeHistory['goldMultiplier'] = (this.upgradeHistory['goldMultiplier'] || 0) + 1;
-                    },
-                    synergy: { 'damage': 0.05 }
-                },
-                {
                     id: 'critialStrike',
                     icon: '💎',
                     title: '크리티컬 스트라이크',
@@ -1097,17 +1067,6 @@ class Game {
                         this.upgradeHistory['shockwave'] = (this.upgradeHistory['shockwave'] || 0) + 1;
                     },
                     synergy: { 'fireRate': 0.2, 'damage': 0.1 }
-                },
-                {
-                    id: 'goldenBall',
-                    icon: '🟡',
-                    title: '황금알',
-                    description: '황금 공 생성: 2배 점수 & 대미지',
-                    effect: () => {
-                        this.goldenBallChance = (this.goldenBallChance || 0) + 0.25;
-                        this.upgradeHistory['goldenBall'] = (this.upgradeHistory['goldenBall'] || 0) + 1;
-                    },
-                    synergy: { 'goldMultiplier': 0.4, 'multiShot': 0.15 }
                 }
             ];
             
@@ -1547,14 +1506,8 @@ class Game {
         this.ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
         this.ctx.fill();
         
-        // 황금알: 반짝이는 테두리
-        if (ball.isGolden) {
-            this.ctx.strokeStyle = '#FFED4E';
-            this.ctx.lineWidth = 3;
-        } else {
-            this.ctx.strokeStyle = '#fff';
-            this.ctx.lineWidth = 2;
-        }
+        this.ctx.strokeStyle = '#fff';
+        this.ctx.lineWidth = 2;
         this.ctx.stroke();
         
         // 소용돌이 효과: 공 주위 원 회전
@@ -1575,14 +1528,6 @@ class Game {
             this.ctx.textAlign = 'center';
             this.ctx.textBaseline = 'middle';
             this.ctx.fillText(ball.type.emoji, ball.x, ball.y);
-        }
-        
-        // 황금알 표시
-        if (ball.isGolden) {
-            this.ctx.font = `${Math.floor(ball.radius * 2)}px Arial`;
-            this.ctx.textAlign = 'center';
-            this.ctx.textBaseline = 'middle';
-            this.ctx.fillText('✨', ball.x, ball.y);
         }
     }
     
