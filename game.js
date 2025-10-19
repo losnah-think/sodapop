@@ -6,17 +6,6 @@ const GameState = {
     GAME_OVER: 'game_over'
 };
 
-// 공 타입 정의
-const BallTypes = {
-    NORMAL: { name: '⚪ 일반공', emoji: '⚪', color: '#4facfe', size: 8, speed: 1.0, penetration: false },
-    TENNIS: { name: '🎾 테니스공', emoji: '🎾', color: '#90EE90', size: 10, speed: 1.2, penetration: true },
-    PING_PONG: { name: '🏓 탁구공', emoji: '🏓', color: '#FFD700', size: 6, speed: 1.4, penetration: false },
-    SHUTTLECOCK: { name: '🏸 셔틀콕', emoji: '🏸', color: '#FF69B4', size: 7, speed: 0.8, penetration: true },
-    BASEBALL: { name: '⚾ 야구공', emoji: '⚾', color: '#FF6347', size: 9, speed: 1.1, penetration: false },
-    BILLIARD: { name: '🎱 당구공', emoji: '🎱', color: '#000000', size: 11, speed: 0.9, penetration: true },
-    BOWLING: { name: '🎳 볼링공', emoji: '🎳', color: '#8B0000', size: 14, speed: 0.7, penetration: true }
-};
-
 // 게임 클래스
 class Game {
     constructor() {
@@ -39,7 +28,6 @@ class Game {
         this.multiShot = 1;
         this.explosionRadius = 0;
         this.critChance = 0;
-        this.ballType = BallTypes.NORMAL;  // 공 타입
         
         // 새로운 스킬 시스템
         this.chainLightning = false;  // 체인 라이트닝
@@ -185,7 +173,6 @@ class Game {
     this.brickSpawnInterval = 1200;
     this.shooterX = this.canvas.width / 2;
         this.lastFireTime = 0;
-        this.ballType = BallTypes.NORMAL;  // 공 타입 초기화
         this.chainLightning = false;
         this.chainLightningCount = 0;
         this.deflectShield = false;
@@ -233,18 +220,14 @@ class Game {
             const vx = Math.sin(angle) * 5;
             const vy = -15 * Math.cos(angle);
             
-            // 공 타입 속도 적용
-            const speedMultiplier = this.ballType.speed || 1.0;
-            
             this.balls.push({
                 x: this.shooterX,
                 y: shooterY,
-                vx: vx * speedMultiplier,
-                vy: vy * speedMultiplier,
-                radius: this.ballType.size || 8,
+                vx: vx,
+                vy: vy,
+                radius: 8,
                 damage: damage,
-                type: this.ballType,
-                color: this.ballType.color,
+                color: '#4facfe',
                 rotation: 0  // 소용돌이용 회전각
             });
         }
@@ -1520,14 +1503,6 @@ class Game {
             this.ctx.arc(ball.x, ball.y, ball.radius * 2.5, 0, Math.PI * 2);
             this.ctx.stroke();
             this.ctx.setLineDash([]);
-        }
-        
-        // 공 타입 이모지 표시
-        if (ball.radius > 8 && ball.type && ball.type.emoji) {
-            this.ctx.font = `${Math.floor(ball.radius * 1.5)}px Arial`;
-            this.ctx.textAlign = 'center';
-            this.ctx.textBaseline = 'middle';
-            this.ctx.fillText(ball.type.emoji, ball.x, ball.y);
         }
     }
     
