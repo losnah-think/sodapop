@@ -50,9 +50,20 @@ class Game {
         // 현재 레벨업 옵션 (선택 전까지 유지)
         this.currentUpgrades = [];
         
+        // 강화 히스토리 (시너지 계산용)
+        this.upgradeHistory = {};  // { 'damage': 5, 'fireRate': 3, ... }
+        
         // 보스 스테이지 시스템
         this.boss = null;  // 현재 보스
         this.isBossStage = false;  // 보스 스테이지 여부
+        
+        // 시각 효과 시스템
+        this.floatingTexts = [];  // 플로팅 텍스트 (점수, 데미지)
+        this.screenFlash = 0;  // 화면 플래시 효과
+        this.backgroundShake = 0;  // 배경 흔들림
+        this.backgroundOffset = { x: 0, y: 0 };  // 배경 오프셋
+        this.levelUpPulse = 0;  // 레벨업 펄스 효과
+        this.bossBattleParticles = [];  // 보스 배경 파티클
         
         // 발사 시스템
         this.isCharging = false;
@@ -209,12 +220,60 @@ class Game {
     }
     
     spawnBoss() {
-        // 보스 생성 (중앙에 고정)
+        // 보스 타입 정의
+        const bossTypes = {
+            TANK: {
+                name: '탱크 보스',
+                emoji: '🗿',
+                color: '#8B4513',
+                hpMultiplier: 2.0,  // 체력이 많음
+                speedMultiplier: 0.5,  // 느림
+                pattern: 'tank'
+            },
+            SPEED: {
+                name: '속도 보스',
+                emoji: '🏃',
+                color: '#FF6347',
+                hpMultiplier: 0.8,  // 체력이 적음
+                speedMultiplier: 2.0,  // 빠름
+                pattern: 'speed'
+            },
+            SHIELD: {
+                name: '실드 보스',
+                emoji: '🛡️',
+                color: '#4169E1',
+                hpMultiplier: 1.5,  // 중간 체력
+                speedMultiplier: 1.0,
+                pattern: 'shield',
+                shieldHP: null  // 별도 실드 체력
+            },
+            SPLITTER: {
+                name: '분할 보스',
+                emoji: '👯',
+                color: '#9932CC',
+                hpMultiplier: 1.2,  // 중간 체력
+                speedMultiplier: 1.0,
+                pattern: 'splitter'
+            },
+            REGENERATE: {
+                name: '재생 보스',
+                emoji: '🧬',
+                color: '#00FF00',
+                hpMultiplier: 1.3,
+                speedMultiplier: 0.7,
+                pattern: 'regenerate'
+            }
+        };
+        
+        // 레벨에 따라 보스 타입 결정
+        const typeList = Object.keys(bossTypes);
+        const bossIndex = Math.floor((this.level / 10 - 1) % typeList.length);
+        const selectedType = bossTypes[typeList[bossIndex]];
+        
         const bossWidth = 150;
         const x = (this.canvas.width - bossWidth) / 2;
-        
-        // 보스 체력 = 일반 벽돌의 약 10배
-        const bossHP = Math.max(50, Math.floor(this.level * 10));
+        const baseHP = Math.max(50, Math.floor(this.level * 10));
+        const bossHP = Math.floor(baseHP * selectedType.hpMultiplier);
         
         this.boss = {
             x: x,
@@ -223,15 +282,25 @@ class Game {
             height: 50,
             hp: bossHP,
             maxHP: bossHP,
-            speed: 0.5,  // 느린 속도
+            speed: 0.5 * selectedType.speedMultiplier,
             isBoss: true,
+            type: selectedType,
+            pattern: selectedType.pattern,
+            
+            // 패턴별 고유 변수
             shootTimer: 0,
-            shootInterval: 1000  // 1초마다 공격
+            shootInterval: 1000,
+            moveDirection: 1,  // 좌우 이동
+            shieldHP: selectedType.pattern === 'shield' ? Math.floor(bossHP * 0.3) : 0,
+            maxShieldHP: selectedType.pattern === 'shield' ? Math.floor(bossHP * 0.3) : 0,
+            regenRate: selectedType.pattern === 'regenerate' ? 0.2 : 0,
+            minions: [],  // 분할 보스용
+            lastRegenTime: Date.now()
         };
         
         this.isBossStage = true;
         this.itemFeedback = [];
-        this.showItemFeedback('👹', '보스 등장!');
+        this.showItemFeedback('BOSS', `${selectedType.name} 등장!`);
     }
     
     spawnBrick() {
@@ -273,6 +342,9 @@ class Game {
     update(deltaTime) {
         if (this.state !== GameState.PLAYING) return;
         
+        // 시각 효과 업데이트
+        this.updateVisualEffects();
+        
         // 드롭 아이템 업데이트
         this.updateDropItems();
         
@@ -287,6 +359,11 @@ class Game {
         if (currentTime - this.lastBrickSpawn >= this.brickSpawnInterval) {
             this.spawnBrick();
             this.lastBrickSpawn = currentTime;
+        }
+        
+        // 보스 업데이트
+        if (this.boss) {
+            this.updateBoss(currentTime);
         }
         
         // 벽돌 이동
@@ -328,16 +405,44 @@ class Game {
                 const isCrit = Math.random() < this.critChance;
                 let actualDamage = isCrit ? ball.damage * 2 : ball.damage;
                 
-                this.boss.hp -= actualDamage;
+                // 크리티컬 이펙트
+                if (isCrit) {
+                    this.screenFlash = 0.3;  // 화면 플래시
+                    this.backgroundShake = 10;  // 배경 흔들림
+                    this.createParticles(ball.x, ball.y, '#ffff00', 30);  // 많은 파티클
+                    this.addFloatingText(`CRIT!`, ball.x, ball.y - 20, '#ffff00', 24, 1000);
+                } else {
+                    this.createParticles(ball.x, ball.y, '#ff4444', 15);
+                }
                 
-                // 파티클 생성
-                this.createParticles(ball.x, ball.y, isCrit ? '#ffff00' : '#ff4444', 15);
+                // 실드 보스: 실드에 먼저 피해
+                if (this.boss.pattern === 'shield' && this.boss.shieldHP > 0) {
+                    const shieldDamage = Math.min(actualDamage, this.boss.shieldHP);
+                    this.boss.shieldHP -= shieldDamage;
+                    actualDamage -= shieldDamage;
+                    
+                    // 실드 피격 이펙트
+                    this.createParticles(ball.x, ball.y, '#4169E1', 10);
+                }
+                
+                // 남은 피해를 보스에 적용
+                if (actualDamage > 0) {
+                    this.boss.hp -= actualDamage;
+                    // 데미지 표시
+                    this.addFloatingText(`-${Math.ceil(actualDamage)}`, ball.x + 20, ball.y, '#ff4444', 18, 800);
+                } else if (this.boss.pattern === 'shield') {
+                    // 실드로 완전히 막음
+                    this.createParticles(ball.x, ball.y, '#4169E1', 8);
+                    this.balls.splice(i, 1);
+                    continue;
+                }
                 
                 if (this.boss.hp <= 0) {
                     // 보스 파괴
                     const now = Date.now();
                     let baseScore = 500 * (1 + this.level * 0.5);  // 보스는 많은 점수 제공
                     this.score += Math.floor(baseScore);
+                    this.addFloatingText(`+${Math.floor(baseScore)}`, this.boss.x + this.boss.width / 2, this.boss.y, '#ffd700', 24, 1200);
                     
                     // 보스 보상: 많은 경험치
                     const expGain = Math.floor(100 + this.level * 10);
@@ -345,7 +450,7 @@ class Game {
                     
                     // 파티클 폭발
                     this.createParticles(this.boss.x + this.boss.width / 2, this.boss.y + this.boss.height / 2, '#ffff00', 50);
-                    this.showItemFeedback('🎉', '보스 격파!');
+                    this.showItemFeedback('VICTORY', `${this.boss.type.name} 격파!`);
                     
                     this.updateUI();
                     
@@ -385,6 +490,9 @@ class Game {
                         const now = Date.now();
                         let baseScore = 10 * (1 + this.level * 0.5);  // 레벨에 따라 점수 증가
                         this.score += Math.floor(baseScore);
+                        
+                        // 점수 플로팅 텍스트
+                        this.addFloatingText(`+${Math.floor(baseScore)}`, brick.x + brick.width / 2, brick.y, '#ffd700', 16, 800);
                         
                         // 경험치 획득
                         const expGain = Math.floor(10 + this.level * 2);  // 레벨에 따라 경험치 증가
@@ -478,10 +586,77 @@ class Game {
         }
     }
     
+    // 플로팅 텍스트 추가
+    addFloatingText(text, x, y, color, fontSize = 16, duration = 1000) {
+        this.floatingTexts.push({
+            text: text,
+            x: x,
+            y: y,
+            color: color,
+            fontSize: fontSize,
+            startTime: Date.now(),
+            duration: duration,
+            startY: y
+        });
+    }
+    
+    // 화면 플래시 효과 업데이트
+    updateVisualEffects() {
+        // 화면 플래시 감소
+        if (this.screenFlash > 0) {
+            this.screenFlash -= 0.05;
+        }
+        
+        // 배경 흔들림 감소
+        if (this.backgroundShake > 0) {
+            this.backgroundShake -= 0.5;
+            this.backgroundOffset.x = (Math.random() - 0.5) * this.backgroundShake;
+            this.backgroundOffset.y = (Math.random() - 0.5) * this.backgroundShake;
+        } else {
+            this.backgroundOffset.x = 0;
+            this.backgroundOffset.y = 0;
+        }
+        
+        // 레벨업 펄스 업데이트
+        if (this.levelUpPulse > 0) {
+            this.levelUpPulse -= 0.02;
+        }
+        
+        // 플로팅 텍스트 업데이트
+        const now = Date.now();
+        for (let i = this.floatingTexts.length - 1; i >= 0; i--) {
+            const text = this.floatingTexts[i];
+            const elapsed = now - text.startTime;
+            
+            if (elapsed > text.duration) {
+                this.floatingTexts.splice(i, 1);
+            }
+        }
+    }
+    
     draw() {
+        // 배경 흔들림 적용
+        this.ctx.save();
+        this.ctx.translate(this.backgroundOffset.x, this.backgroundOffset.y);
+        
         // 백그라운드
         this.ctx.fillStyle = '#0f0f1e';
         this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // 보스 스테이지 배경 이펙트
+        if (this.isBossStage) {
+            this.ctx.fillStyle = 'rgba(255, 0, 0, 0.05)';
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        }
+        
+        // 레벨업 배경 펄스 이펙트
+        if (this.levelUpPulse > 0) {
+            const pulseAlpha = Math.sin(this.levelUpPulse * Math.PI * 4) * 0.1 * this.levelUpPulse;
+            this.ctx.fillStyle = `rgba(255, 215, 0, ${pulseAlpha})`;
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        }
+        
+        this.ctx.restore();
         
         if (this.state !== GameState.PLAYING) return;
         
@@ -563,10 +738,10 @@ class Game {
         
         if (now < this.slowTimeEnd) {
             this.ctx.fillStyle = '#00d4ff';
-            this.ctx.font = 'bold 16px Arial';
+            this.ctx.font = 'bold 14px Arial';
             this.ctx.textAlign = 'left';
             this.ctx.textBaseline = 'top';
-            this.ctx.fillText('⏸️ Slow Time', 15, buffY);
+            this.ctx.fillText('SLOW TIME', 15, buffY);
             buffY += 25;
         }
         
@@ -624,6 +799,33 @@ class Game {
         this.ctx.strokeStyle = '#fff';
         this.ctx.lineWidth = 3;
         this.ctx.stroke();
+        
+        // 플로팅 텍스트 렌더링
+        const nowTime = Date.now();
+        for (const floatingText of this.floatingTexts) {
+            const elapsed = nowTime - floatingText.startTime;
+            const progress = elapsed / floatingText.duration;
+            
+            // 위로 상승하는 애니메이션
+            const currentY = floatingText.startY - progress * 50;
+            
+            // 페이드아웃
+            const alpha = Math.max(0, 1 - progress);
+            
+            this.ctx.globalAlpha = alpha;
+            this.ctx.fillStyle = floatingText.color;
+            this.ctx.font = `bold ${floatingText.fontSize}px Arial`;
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText(floatingText.text, floatingText.x, currentY);
+            this.ctx.globalAlpha = 1;
+        }
+        
+        // 화면 플래시 효과 (크리티컬)
+        if (this.screenFlash > 0) {
+            this.ctx.fillStyle = `rgba(255, 255, 255, ${this.screenFlash * 0.5})`;
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+        }
     }
     
     showUpgradeCards() {
@@ -633,36 +835,114 @@ class Game {
         if (this.currentUpgrades.length === 0) {
             cardContainer.innerHTML = '';
             
-            // 강화 옵션만 (진화 시스템 제거)
-            const upgrades = [
-                { icon: '🔥', title: '데미지 증가', description: '+2 데미지', effect: () => this.damage += 2 },
-                { icon: '⚡', title: '발사 속도', description: '+0.5 발사 속도', effect: () => this.fireRate += 0.5 },
-                { icon: '', title: '멀티 샷', description: '+1 동시 발사', effect: () => this.multiShot++ },
-                { icon: '💥', title: '폭발 범위', description: '+50 폭발 반경', effect: () => this.explosionRadius += 50 },
-                { icon: '✨', title: '크리티컬', description: '+15% 크리티컬', effect: () => this.critChance += 0.15 }
+            // 강화 옵션 + 시너지 보너스 정보
+            const baseUpgrades = [
+                { 
+                    id: 'damage',
+                    icon: '🔥', 
+                    title: '데미지 증가', 
+                    description: '+2 데미지', 
+                    effect: () => {
+                        this.damage += 2;
+                        this.upgradeHistory['damage'] = (this.upgradeHistory['damage'] || 0) + 1;
+                    },
+                    synergy: { 'critChance': 0.05 }  // 크리티컬과 시너지
+                },
+                { 
+                    id: 'fireRate',
+                    icon: '⚡', 
+                    title: '발사 속도', 
+                    description: '+0.5 발사 속도', 
+                    effect: () => {
+                        this.fireRate += 0.5;
+                        this.upgradeHistory['fireRate'] = (this.upgradeHistory['fireRate'] || 0) + 1;
+                    },
+                    synergy: { 'multiShot': 0.15 }  // 멀티샷과 시너지
+                },
+                { 
+                    id: 'multiShot',
+                    icon: '🎯', 
+                    title: '멀티 샷', 
+                    description: '+1 동시 발사', 
+                    effect: () => {
+                        this.multiShot++;
+                        this.upgradeHistory['multiShot'] = (this.upgradeHistory['multiShot'] || 0) + 1;
+                    },
+                    synergy: { 'damage': 0.2, 'explosionRadius': 0.1 }  // 데미지, 폭발과 시너지
+                },
+                { 
+                    id: 'explosion',
+                    icon: '💥', 
+                    title: '폭발 범위', 
+                    description: '+50 폭발 반경', 
+                    effect: () => {
+                        this.explosionRadius += 50;
+                        this.upgradeHistory['explosion'] = (this.upgradeHistory['explosion'] || 0) + 1;
+                    },
+                    synergy: { 'damage': 0.15 }  // 데미지와 시너지
+                },
+                { 
+                    id: 'critChance',
+                    icon: '✨', 
+                    title: '크리티컬', 
+                    description: '+15% 크리티컬', 
+                    effect: () => {
+                        this.critChance += 0.15;
+                        this.upgradeHistory['critChance'] = (this.upgradeHistory['critChance'] || 0) + 1;
+                    },
+                    synergy: { 'damage': 0.1 }  // 데미지와 시너지
+                }
             ];
             
-            // 랜덤 3개 선택
-            const shuffled = upgrades.sort(() => 0.5 - Math.random());
-            this.currentUpgrades = shuffled.slice(0, 3);
+            // 추천 강화 계산 (현재 빌드에 맞는 것)
+            const recommendedUpgrade = this.calculateRecommendedUpgrade(baseUpgrades);
+            
+            // 랜덤 3개 선택 (추천 강화 포함)
+            const shuffled = baseUpgrades.sort(() => 0.5 - Math.random());
+            let selected = shuffled.slice(0, 2);
+            
+            // 추천 강화가 이미 선택되지 않았으면 추가
+            if (!selected.find(u => u.id === recommendedUpgrade.id)) {
+                selected[0] = recommendedUpgrade;
+            }
+            
+            this.currentUpgrades = selected;
             
             // 카드 생성
-            this.currentUpgrades.forEach(upgrade => {
+            this.currentUpgrades.forEach((upgrade, index) => {
                 const card = document.createElement('div');
                 card.className = 'upgrade-card';
+                
+                // 시너지 보너스 계산
+                let synergyBonus = 0;
+                if (upgrade.synergy) {
+                    for (const [type, bonus] of Object.entries(upgrade.synergy)) {
+                        if (this.upgradeHistory[type] && this.upgradeHistory[type] > 0) {
+                            synergyBonus += bonus * this.upgradeHistory[type];
+                        }
+                    }
+                }
+                
+                const synergyText = synergyBonus > 0 ? `\n SYNERGY +${(synergyBonus * 100).toFixed(0)}%` : '';
+                const isRecommended = upgrade.id === recommendedUpgrade.id ? '★ RECOMMENDED' : '';
+                
                 card.innerHTML = `
                     <div class="card-icon">${upgrade.icon}</div>
                     <div class="card-title">${upgrade.title}</div>
-                    <div class="card-description">${upgrade.description}</div>
+                    <div class="card-description">${upgrade.description}${synergyText}</div>
+                    <div style="font-size: 12px; color: #ffd700; margin-top: 5px;">${isRecommended}</div>
                 `;
                 
                 card.addEventListener('click', (e) => {
-                    // 이벤트 전파 방지 및 중복 클릭 방지
                     card.style.pointerEvents = 'none';
                     upgrade.effect();
-                    // 선택한 업그레이드 초기화 (다음 레벨업을 위해)
+                    
+                    // 시너지 보너스 적용
+                    if (upgrade.synergy && synergyBonus > 0) {
+                        this.showItemFeedback('SYNERGY', `+${(synergyBonus * 100).toFixed(0)}%`);
+                    }
+                    
                     this.currentUpgrades = [];
-                    // 카드 선택 후 바로 게임 계속
                     document.getElementById('stageclear-screen').classList.add('hidden');
                     this.state = GameState.PLAYING;
                     this.lastBrickSpawn = Date.now();
@@ -683,14 +963,81 @@ class Game {
         }, 1000);
     }
     
+    // 추천 강화 계산
+    calculateRecommendedUpgrade(upgrades) {
+        let bestUpgrade = upgrades[0];
+        let bestScore = 0;
+        
+        for (const upgrade of upgrades) {
+            let score = 1;  // 기본 점수
+            
+            // 아직 선택하지 않은 강화는 더 높은 점수
+            if (!this.upgradeHistory[upgrade.id]) {
+                score += 2;
+            }
+            
+            // 시너지가 있는 강화는 더 높은 점수
+            if (upgrade.synergy) {
+                for (const [type, bonus] of Object.entries(upgrade.synergy)) {
+                    if (this.upgradeHistory[type] && this.upgradeHistory[type] > 0) {
+                        score += this.upgradeHistory[type] * 1.5;
+                    }
+                }
+            }
+            
+            if (score > bestScore) {
+                bestScore = score;
+                bestUpgrade = upgrade;
+            }
+        }
+        
+        return bestUpgrade;
+    }
+    
     gameOver() {
         this.state = GameState.GAME_OVER;
         document.getElementById('final-score').textContent = Math.floor(this.score);
         document.getElementById('final-stage').textContent = this.level;  // 레벨 표시
         document.getElementById('gameover-screen').classList.remove('hidden');
     }
+    // 보스 업데이트
+    updateBoss(currentTime) {
+        const boss = this.boss;
+        if (!boss) return;
+        
+        // 재생 보스: 체력 회복
+        if (boss.pattern === 'regenerate') {
+            if (currentTime - boss.lastRegenTime > 1000) {  // 1초마다
+                boss.hp = Math.min(boss.maxHP, boss.hp + boss.regenRate);
+                boss.lastRegenTime = currentTime;
+            }
+        }
+        
+        // 속도 보스: 좌우 이동
+        if (boss.pattern === 'speed') {
+            boss.x += boss.moveDirection * 3;
+            if (boss.x <= 30 || boss.x >= this.canvas.width - boss.width - 30) {
+                boss.moveDirection *= -1;
+            }
+        }
+        
+        // 탱크 보스: 느리고 직진
+        if (boss.pattern === 'tank') {
+            // 특별한 움직임 없음
+        }
+        
+        // 실드 보스: 실드 재생
+        if (boss.pattern === 'shield') {
+            if (currentTime - boss.lastRegenTime > 2000 && boss.shieldHP < boss.maxShieldHP) {
+                boss.shieldHP = Math.min(boss.maxShieldHP, boss.shieldHP + 5);
+                boss.lastRegenTime = currentTime;
+            }
+        }
+        
+        // 보스 내려오기
+        boss.y += boss.speed;
+    }
     
-    // 드롭 아이템 업데이트
     updateDropItems() {
         const now = Date.now();
         
@@ -797,6 +1144,10 @@ class Game {
         this.exp = 0;
         this.expToLevelUp = Math.floor(100 * (1.2 ** (this.level - 1)));  // 지수적으로 증가
         
+        // 레벨업 펄스 이펙트
+        this.levelUpPulse = 1.0;
+        this.showItemFeedback('LEVEL UP', `Lv. ${this.level}`);
+        
         // 난이도 증가
         this.brickSpeed += 0.15;
         this.brickSpawnInterval = Math.max(600, this.brickSpawnInterval - 50);
@@ -857,14 +1208,16 @@ class Game {
     // 보스 렌더링
     drawBoss(boss) {
         const hpPercent = Math.max(0, boss.hp / boss.maxHP);
-        const color = `hsl(${hpPercent * 60}, 100%, 50%)`;  // 빨강에서 노랑으로
+        const color = boss.type.color;
         
-        // 보스 본체 (강렬한 색상)
+        // 보스 본체 (타입별 색상)
         this.ctx.fillStyle = color;
+        this.ctx.globalAlpha = 0.8;
         this.ctx.fillRect(boss.x, boss.y, boss.width, boss.height);
+        this.ctx.globalAlpha = 1;
         
         // 굵은 테두리 (강조)
-        this.ctx.strokeStyle = '#ff00ff';
+        this.ctx.strokeStyle = '#ffff00';
         this.ctx.lineWidth = 4;
         this.ctx.strokeRect(boss.x, boss.y, boss.width, boss.height);
         
@@ -872,27 +1225,62 @@ class Game {
         this.ctx.font = 'bold 40px Arial';
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
-        this.ctx.fillText('👹', boss.x + boss.width / 2, boss.y + boss.height / 2);
+        this.ctx.fillText(boss.type.emoji, boss.x + boss.width / 2, boss.y + boss.height / 2);
+        
+        // 실드 보스: 실드 표시
+        if (boss.pattern === 'shield' && boss.shieldHP > 0) {
+            const shieldPercent = boss.shieldHP / boss.maxShieldHP;
+            const shieldSize = 80;
+            const shieldX = boss.x + boss.width / 2 - shieldSize / 2;
+            const shieldY = boss.y + boss.height / 2 - shieldSize / 2;
+            
+            // 실드 원형
+            this.ctx.strokeStyle = '#4169E1';
+            this.ctx.lineWidth = 3;
+            this.ctx.globalAlpha = 0.6;
+            this.ctx.beginPath();
+            this.ctx.arc(boss.x + boss.width / 2, boss.y + boss.height / 2, shieldSize, 0, Math.PI * 2);
+            this.ctx.stroke();
+            this.ctx.globalAlpha = 1;
+        }
         
         // HP 바 (상단)
         const barWidth = boss.width;
-        const barHeight = 10;
+        const barHeight = 15;
         
         this.ctx.fillStyle = '#333';
-        this.ctx.fillRect(boss.x, boss.y - 20, barWidth, barHeight);
+        this.ctx.fillRect(boss.x, boss.y - 25, barWidth, barHeight);
         
         this.ctx.fillStyle = color;
-        this.ctx.fillRect(boss.x, boss.y - 20, barWidth * hpPercent, barHeight);
+        this.ctx.fillRect(boss.x, boss.y - 25, barWidth * hpPercent, barHeight);
         
         this.ctx.strokeStyle = '#fff';
         this.ctx.lineWidth = 2;
-        this.ctx.strokeRect(boss.x, boss.y - 20, barWidth, barHeight);
+        this.ctx.strokeRect(boss.x, boss.y - 25, barWidth, barHeight);
+        
+        // 보스 이름 + 패턴
+        this.ctx.fillStyle = '#ffff00';
+        this.ctx.font = 'bold 14px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(boss.type.name, boss.x + boss.width / 2, boss.y - 35);
         
         // HP 텍스트
         this.ctx.fillStyle = '#fff';
         this.ctx.font = 'bold 12px Arial';
         this.ctx.textAlign = 'center';
-        this.ctx.fillText(`${boss.hp} / ${boss.maxHP}`, boss.x + boss.width / 2, boss.y - 25);
+        this.ctx.fillText(`${Math.ceil(boss.hp)} / ${boss.maxHP}`, boss.x + boss.width / 2, boss.y - 12);
+        
+        // 패턴 표시
+        let patternText = '';
+        if (boss.pattern === 'regenerate') patternText = 'REGENERATING';
+        if (boss.pattern === 'speed') patternText = 'MOVING';
+        
+        if (patternText) {
+            this.ctx.fillStyle = '#ffff00';
+            this.ctx.font = '12px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText(patternText, boss.x + boss.width / 2, boss.y + boss.height + 15);
+        }
     }
     
     // 아이템이 있는 벽돌 렌더링 (전면)
