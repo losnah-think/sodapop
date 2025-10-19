@@ -50,6 +50,10 @@ class Game {
         // 현재 레벨업 옵션 (선택 전까지 유지)
         this.currentUpgrades = [];
         
+        // 보스 스테이지 시스템
+        this.boss = null;  // 현재 보스
+        this.isBossStage = false;  // 보스 스테이지 여부
+        
         // 발사 시스템
         this.isCharging = false;
         this.chargeAmount = 0;
@@ -149,6 +153,8 @@ class Game {
     this.critChance = 0;
     this.slowTimeEnd = 0;  // 슬로우 타임 초기화
     this.itemFeedback = [];  // 아이템 피드백 초기화
+    this.boss = null;  // 보스 초기화
+    this.isBossStage = false;  // 보스 스테이지 초기화
     this.brickSpeed = 1.2;
     this.brickSpawnInterval = 1200;
     this.shooterX = this.canvas.width / 2;
@@ -202,7 +208,36 @@ class Game {
         }
     }
     
+    spawnBoss() {
+        // 보스 생성 (중앙에 고정)
+        const bossWidth = 150;
+        const x = (this.canvas.width - bossWidth) / 2;
+        
+        // 보스 체력 = 일반 벽돌의 약 10배
+        const bossHP = Math.max(50, Math.floor(this.level * 10));
+        
+        this.boss = {
+            x: x,
+            y: 100,
+            width: bossWidth,
+            height: 50,
+            hp: bossHP,
+            maxHP: bossHP,
+            speed: 0.5,  // 느린 속도
+            isBoss: true,
+            shootTimer: 0,
+            shootInterval: 1000  // 1초마다 공격
+        };
+        
+        this.isBossStage = true;
+        this.itemFeedback = [];
+        this.showItemFeedback('👹', '보스 등장!');
+    }
+    
     spawnBrick() {
+        // 보스 스테이지에서는 일반 벽돌 생성 안함
+        if (this.isBossStage) return;
+        
         // 최대 벽돌 개수 제한 - 성능 최적화
         const MAX_BRICKS = 50;
         if (this.bricks.length >= MAX_BRICKS) return;
@@ -287,7 +322,49 @@ class Game {
                 continue;
             }
             
-                        // 벽돌과 충돌 내최
+            // 보스와 충돌 처리
+            if (this.boss && this.checkCollision(ball, this.boss)) {
+                // 크리티컬 확인
+                const isCrit = Math.random() < this.critChance;
+                let actualDamage = isCrit ? ball.damage * 2 : ball.damage;
+                
+                this.boss.hp -= actualDamage;
+                
+                // 파티클 생성
+                this.createParticles(ball.x, ball.y, isCrit ? '#ffff00' : '#ff4444', 15);
+                
+                if (this.boss.hp <= 0) {
+                    // 보스 파괴
+                    const now = Date.now();
+                    let baseScore = 500 * (1 + this.level * 0.5);  // 보스는 많은 점수 제공
+                    this.score += Math.floor(baseScore);
+                    
+                    // 보스 보상: 많은 경험치
+                    const expGain = Math.floor(100 + this.level * 10);
+                    this.exp += expGain;
+                    
+                    // 파티클 폭발
+                    this.createParticles(this.boss.x + this.boss.width / 2, this.boss.y + this.boss.height / 2, '#ffff00', 50);
+                    this.showItemFeedback('🎉', '보스 격파!');
+                    
+                    this.updateUI();
+                    
+                    // 보스 제거
+                    this.boss = null;
+                    this.isBossStage = false;
+                    
+                    // 레벨업 확인
+                    if (this.exp >= this.expToLevelUp) {
+                        this.levelUp();
+                    }
+                }
+                
+                // 공 제거
+                this.balls.splice(i, 1);
+                continue;
+            }
+            
+            // 벽돌과 충돌 처리
             let hit = false;
             for (let j = this.bricks.length - 1; j >= 0; j--) {
                 const brick = this.bricks[j];
@@ -419,6 +496,11 @@ class Game {
             
             // 아이템 없는 벽돌 렌더링
             this.drawBrick(brick);
+        }
+        
+        // 보스 렌더링
+        if (this.boss) {
+            this.drawBoss(this.boss);
         }
         
         // 구슬
@@ -719,8 +801,14 @@ class Game {
         this.brickSpeed += 0.15;
         this.brickSpawnInterval = Math.max(600, this.brickSpawnInterval - 50);
         
-        // 레벨업 화면 표시
-        this.showLevelUpRewards();
+        // 10의 배수 레벨에서 보스 등장
+        if (this.level % 10 === 0) {
+            this.spawnBoss();
+            this.lastBrickSpawn = Date.now();
+        } else {
+            // 레벨업 화면 표시
+            this.showLevelUpRewards();
+        }
     }
     
     // 레벨업 보상 화면
@@ -764,6 +852,47 @@ class Game {
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
         this.ctx.fillText(brick.hp, brick.x + brick.width / 2, brick.y + brick.height / 2);
+    }
+    
+    // 보스 렌더링
+    drawBoss(boss) {
+        const hpPercent = Math.max(0, boss.hp / boss.maxHP);
+        const color = `hsl(${hpPercent * 60}, 100%, 50%)`;  // 빨강에서 노랑으로
+        
+        // 보스 본체 (강렬한 색상)
+        this.ctx.fillStyle = color;
+        this.ctx.fillRect(boss.x, boss.y, boss.width, boss.height);
+        
+        // 굵은 테두리 (강조)
+        this.ctx.strokeStyle = '#ff00ff';
+        this.ctx.lineWidth = 4;
+        this.ctx.strokeRect(boss.x, boss.y, boss.width, boss.height);
+        
+        // 보스 아이콘
+        this.ctx.font = 'bold 40px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText('👹', boss.x + boss.width / 2, boss.y + boss.height / 2);
+        
+        // HP 바 (상단)
+        const barWidth = boss.width;
+        const barHeight = 10;
+        
+        this.ctx.fillStyle = '#333';
+        this.ctx.fillRect(boss.x, boss.y - 20, barWidth, barHeight);
+        
+        this.ctx.fillStyle = color;
+        this.ctx.fillRect(boss.x, boss.y - 20, barWidth * hpPercent, barHeight);
+        
+        this.ctx.strokeStyle = '#fff';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(boss.x, boss.y - 20, barWidth, barHeight);
+        
+        // HP 텍스트
+        this.ctx.fillStyle = '#fff';
+        this.ctx.font = 'bold 12px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(`${boss.hp} / ${boss.maxHP}`, boss.x + boss.width / 2, boss.y - 25);
     }
     
     // 아이템이 있는 벽돌 렌더링 (전면)
