@@ -18,8 +18,8 @@ class Game {
         this.level = 1;
         this.exp = 0;
         this.expToLevelUp = Math.floor(100 * (1.2 ** (this.level - 1)));  // 레벨업에 필요한 경험치 (지수적 증가)
-        this.bricks = [];
-        this.balls = [];
+        this.friedRice = [];  // 볶음밥
+        this.spatulas = [];  // 주걱
         this.particles = [];
         
         // 플레이어 스탯
@@ -32,7 +32,7 @@ class Game {
         // 새로운 스킬 시스템
         this.chainLightning = false;  // 체인 라이트닝
         this.chainLightningCount = 0;
-        this.brickSpeedMultiplier = 1.0;  // 슬로우 필드
+        this.friedRiceSpeedMultiplier = 1.0;  // 슬로우 필드
         this.deflectShield = false;  // 디플렉트 쉴드
         this.deflectShieldActive = false;
         this.deflectShieldCooldown = 0;
@@ -76,9 +76,9 @@ class Game {
         this.autoFireInterval = 25;
         
         // 난이도 설정
-        this.brickSpeed = 1.2;
-        this.brickSpawnInterval = 1200;
-        this.lastBrickSpawn = 0;
+        this.friedRiceSpeed = 1.2;
+        this.friedRiceSpawnInterval = 1200;
+        this.lastFriedRiceSpawn = 0;
         this.shooterSpeed = 10;
         
         // 캔버스 크기 설정
@@ -145,7 +145,7 @@ class Game {
         console.log('게임 시작!');
         document.getElementById('start-screen').classList.add('hidden');
         this.state = GameState.PLAYING;
-        this.lastBrickSpawn = Date.now();
+        this.lastFriedRiceSpawn = Date.now();
     }
     
     restartGame() {
@@ -155,8 +155,8 @@ class Game {
         this.level = 1;
         this.exp = 0;
         this.expToLevelUp = Math.floor(100 * (1.2 ** (this.level - 1)));  // 레벨업에 필요한 경험치 (지수적 증가)
-    this.bricks = [];
-    this.balls = [];
+    this.friedRice = [];
+    this.spatulas = [];
     this.particles = [];
     this.dropItems = [];  // 드롭 아이템 초기화
     this.damage = 1;
@@ -168,9 +168,9 @@ class Game {
     this.itemFeedback = [];  // 아이템 피드백 초기화
     this.boss = null;  // 보스 초기화
     this.isBossStage = false;  // 보스 스테이지 초기화
-    this.brickSpeed = 1.2;
-    this.brickSpeedMultiplier = 1.0;
-    this.brickSpawnInterval = 1200;
+    this.friedRiceSpeed = 1.2;
+    this.friedRiceSpeedMultiplier = 1.0;
+    this.friedRiceSpawnInterval = 1200;
     this.shooterX = this.canvas.width / 2;
         this.lastFireTime = 0;
         this.chainLightning = false;
@@ -213,21 +213,21 @@ class Game {
             this.triggerShockwave();
         }
         
-        // 멀티샷 구현 - 각도로 발사
+        // 멀티샷 구현 - 각도로 발사 (주걱)
         const angleSpread = 0.3;  // 각도 간격
         for (let i = 0; i < this.multiShot; i++) {
             const angle = (i - (this.multiShot - 1) / 2) * angleSpread;
             const vx = Math.sin(angle) * 5;
             const vy = -15 * Math.cos(angle);
             
-            this.balls.push({
+            this.spatulas.push({
                 x: this.shooterX,
                 y: shooterY,
                 vx: vx,
                 vy: vy,
                 radius: 8,
                 damage: damage,
-                color: '#4facfe',
+                color: '#FF6B35',  // 주걱 색상 (주황색)
                 rotation: 0  // 소용돌이용 회전각
             });
         }
@@ -317,13 +317,13 @@ class Game {
         this.showItemFeedback('BOSS', `${selectedType.name} 등장!`);
     }
     
-    spawnBrick() {
-        // 보스 스테이지에서는 일반 벽돌 생성 안함
+    spawnFriedRice() {
+        // 보스 스테이지에서는 일반 볶음밥 생성 안함
         if (this.isBossStage) return;
         
-        // 최대 벽돌 개수 제한 - 성능 최적화
-        const MAX_BRICKS = 50;
-        if (this.bricks.length >= MAX_BRICKS) return;
+        // 최대 볶음밥 개수 제한 - 성능 최적화
+        const MAX_FRIEDRICE = 50;
+        if (this.friedRice.length >= MAX_FRIEDRICE) return;
         
         const minWidth = 60;
         const maxWidth = 120;
@@ -341,14 +341,14 @@ class Game {
             item = items[Math.floor(Math.random() * items.length)];
         }
         
-        this.bricks.push({
+        this.friedRice.push({
             x: x,
             y: -50,
             width: width,
             height: 40,
             hp: hp,
             maxHP: hp,
-            speed: this.brickSpeed,
+            speed: this.friedRiceSpeed,
             item: item  // 아이템 포함
         });
     }
@@ -369,10 +369,10 @@ class Game {
             this.lastFireTime = currentTime;
         }
         
-        // 벽돌 생성
-        if (currentTime - this.lastBrickSpawn >= this.brickSpawnInterval) {
-            this.spawnBrick();
-            this.lastBrickSpawn = currentTime;
+        // 볶음밥 생성
+        if (currentTime - this.lastFriedRiceSpawn >= this.friedRiceSpawnInterval) {
+            this.spawnFriedRice();
+            this.lastFriedRiceSpawn = currentTime;
         }
         
         // 보스 업데이트
@@ -380,20 +380,20 @@ class Game {
             this.updateBoss(currentTime);
         }
         
-        // 벽돌 이동
-        for (let i = this.bricks.length - 1; i >= 0; i--) {
-            const brick = this.bricks[i];
+        // 볶음밥 이동
+        for (let i = this.friedRice.length - 1; i >= 0; i--) {
+            const rice = this.friedRice[i];
             
             // 슬로우 필드 + 슬로우 타임 적용
-            let brickSpeed = brick.speed * this.brickSpeedMultiplier;
+            let riceSpeed = rice.speed * this.friedRiceSpeedMultiplier;
             if (currentTime < this.slowTimeEnd) {
-                brickSpeed *= 0.3;
+                riceSpeed *= 0.3;
             }
             
-            brick.y += brickSpeed;
+            rice.y += riceSpeed;
             
             // 화면 아래로 나가면 게임 오버
-            if (brick.y > this.canvas.height) {
+            if (rice.y > this.canvas.height) {
                 this.gameOver();
                 return;
             }
@@ -408,34 +408,34 @@ class Game {
             }
         }
         
-        // 구슬 이동 및 충돌
-        const MAX_BALLS = 100;  // 최대 구슬 개수 제한
-        for (let i = this.balls.length - 1; i >= 0; i--) {
-            const ball = this.balls[i];
-            ball.x += ball.vx;
-            ball.y += ball.vy;
+        // 주걱 이동 및 충돌
+        const MAX_SPATULAS = 100;  // 최대 주걱 개수 제한
+        for (let i = this.spatulas.length - 1; i >= 0; i--) {
+            const spatula = this.spatulas[i];
+            spatula.x += spatula.vx;
+            spatula.y += spatula.vy;
             
             // 화면 밖으로 나가면 제거
-            if (ball.x < 0 || ball.x > this.canvas.width || 
-                ball.y < 0 || ball.y > this.canvas.height) {
-                this.balls.splice(i, 1);
+            if (spatula.x < 0 || spatula.x > this.canvas.width || 
+                spatula.y < 0 || spatula.y > this.canvas.height) {
+                this.spatulas.splice(i, 1);
                 continue;
             }
             
             // 보스와 충돌 처리
-            if (this.boss && this.checkCollision(ball, this.boss)) {
+            if (this.boss && this.checkCollision(spatula, this.boss)) {
                 // 크리티컬 확인
                 const isCrit = Math.random() < this.critChance;
-                let actualDamage = isCrit ? ball.damage * this.critMultiplier : ball.damage;
+                let actualDamage = isCrit ? spatula.damage * this.critMultiplier : spatula.damage;
                 
                 // 크리티컬 이펙트
                 if (isCrit) {
                     this.screenFlash = 0.3;  // 화면 플래시
                     this.backgroundShake = 10;  // 배경 흔들림
-                    this.createParticles(ball.x, ball.y, '#ffff00', 30);  // 많은 파티클
-                    this.addFloatingText(`CRIT!`, ball.x, ball.y - 20, '#ffff00', 24, 1000);
+                    this.createParticles(spatula.x, spatula.y, '#ffff00', 30);  // 많은 파티클
+                    this.addFloatingText(`CRIT!`, spatula.x, spatula.y - 20, '#ffff00', 24, 1000);
                 } else {
-                    this.createParticles(ball.x, ball.y, '#ff4444', 15);
+                    this.createParticles(spatula.x, spatula.y, '#ff4444', 15);
                 }
                 
                 // 실드 보스: 실드에 먼저 피해
@@ -445,18 +445,18 @@ class Game {
                     actualDamage -= shieldDamage;
                     
                     // 실드 피격 이펙트
-                    this.createParticles(ball.x, ball.y, '#4169E1', 10);
+                    this.createParticles(spatula.x, spatula.y, '#4169E1', 10);
                 }
                 
                 // 남은 피해를 보스에 적용
                 if (actualDamage > 0) {
                     this.boss.hp -= actualDamage;
                     // 데미지 표시
-                    this.addFloatingText(`-${Math.ceil(actualDamage)}`, ball.x + 20, ball.y, '#ff4444', 18, 800);
+                    this.addFloatingText(`-${Math.ceil(actualDamage)}`, spatula.x + 20, spatula.y, '#ff4444', 18, 800);
                 } else if (this.boss.pattern === 'shield') {
                     // 실드로 완전히 막음
-                    this.createParticles(ball.x, ball.y, '#4169E1', 8);
-                    this.balls.splice(i, 1);
+                    this.createParticles(spatula.x, spatula.y, '#4169E1', 8);
+                    this.spatulas.splice(i, 1);
                     continue;
                 }
                 
@@ -487,29 +487,29 @@ class Game {
                     }
                 }
                 
-                // 공 제거
-                this.balls.splice(i, 1);
+                // 주걱 제거
+                this.spatulas.splice(i, 1);
                 continue;
             }
             
-            // 벽돌과 충돌 처리
+            // 볶음밥과 충돌 처리
             let hit = false;
-            for (let j = this.bricks.length - 1; j >= 0; j--) {
-                const brick = this.bricks[j];
+            for (let j = this.friedRice.length - 1; j >= 0; j--) {
+                const rice = this.friedRice[j];
                 
-                if (this.checkCollision(ball, brick)) {
+                if (this.checkCollision(spatula, rice)) {
                     // 크리티컬 확인
                     const isCrit = Math.random() < this.critChance;
-                    let actualDamage = isCrit ? ball.damage * this.critMultiplier : ball.damage;
+                    let actualDamage = isCrit ? spatula.damage * this.critMultiplier : spatula.damage;
                     
-                    brick.hp -= actualDamage;
+                    rice.hp -= actualDamage;
                     
                     // 파티클 생성
-                    this.createParticles(ball.x, ball.y, isCrit ? '#ffff00' : '#ffffff');
+                    this.createParticles(spatula.x, spatula.y, isCrit ? '#ffff00' : '#ffffff');
                     
                     // 체인 라이트닝 효과
                     if (this.chainLightning && isCrit) {
-                        this.triggerChainLightning(brick);
+                        this.triggerChainLightning(rice);
                     }
                     
                     if (brick.hp <= 0) {
@@ -550,10 +550,8 @@ class Game {
                     }
                     
                     hit = true;
-                    
-                    hit = true;
-                    // 관통이 없으므로 공 제거
-                    this.balls.splice(i, 1);
+                    // 관통이 없으므로 주걡 제거
+                    this.spatulas.splice(i, 1);
                     break;
                 }
             }
@@ -573,51 +571,51 @@ class Game {
         }
     }
     
-    checkCollision(ball, brick) {
+    checkCollision(spatula, rice) {
         // 최적화된 축이 점단 충돌 감지
-        const closestX = Math.max(brick.x, Math.min(ball.x, brick.x + brick.width));
-        const closestY = Math.max(brick.y, Math.min(ball.y, brick.y + brick.height));
+        const closestX = Math.max(rice.x, Math.min(spatula.x, rice.x + rice.width));
+        const closestY = Math.max(rice.y, Math.min(spatula.y, rice.y + rice.height));
         
-        const dx = ball.x - closestX;
-        const dy = ball.y - closestY;
+        const dx = spatula.x - closestX;
+        const dy = spatula.y - closestY;
         
         // 조기 반환 - 더 빠른 추적
-        return dx * dx + dy * dy < ball.radius * ball.radius;
+        return dx * dx + dy * dy < spatula.radius * spatula.radius;
     }
     
     explode(x, y) {
-        for (const brick of this.bricks) {
-            const dx = (brick.x + brick.width / 2) - x;
-            const dy = (brick.y + brick.height / 2) - y;
+        for (const rice of this.friedRice) {
+            const dx = (rice.x + rice.width / 2) - x;
+            const dy = (rice.y + rice.height / 2) - y;
             const distance = Math.sqrt(dx * dx + dy * dy);
             
             if (distance <= this.explosionRadius) {
-                brick.hp -= this.damage * 0.5;
+                rice.hp -= this.damage * 0.5;
             }
         }
     }
     
     // 체인 라이트닝 스킬
-    triggerChainLightning(targetBrick) {
+    triggerChainLightning(targetRice) {
         const chainDistance = 150;
         const damage = this.damage * 0.8;
-        let hit = [targetBrick];
+        let hit = [targetRice];
         
-        // 주변 벽돌에 번개 전파
-        for (const brick of this.bricks) {
-            if (hit.includes(brick)) continue;
+        // 주변 볶음밥에 번개 전파
+        for (const rice of this.friedRice) {
+            if (hit.includes(rice)) continue;
             
-            const dx = (brick.x + brick.width / 2) - (targetBrick.x + targetBrick.width / 2);
-            const dy = (brick.y + brick.height / 2) - (targetBrick.y + targetBrick.height / 2);
+            const dx = (rice.x + rice.width / 2) - (targetRice.x + targetRice.width / 2);
+            const dy = (rice.y + rice.height / 2) - (targetRice.y + targetRice.height / 2);
             const distance = Math.sqrt(dx * dx + dy * dy);
             
             if (distance <= chainDistance) {
-                brick.hp -= damage;
-                hit.push(brick);
+                rice.hp -= damage;
+                hit.push(rice);
                 
                 // 번개 파티클
-                this.createParticles(brick.x + brick.width / 2, brick.y + brick.height / 2, '#00ffff', 8);
-                this.addFloatingText('⚡', brick.x + brick.width / 2, brick.y - 20, '#00ffff', 14, 500);
+                this.createParticles(rice.x + rice.width / 2, rice.y + rice.height / 2, '#00ffff', 8);
+                this.addFloatingText('⚡', rice.x + rice.width / 2, rice.y - 20, '#00ffff', 14, 500);
             }
         }
     }
@@ -628,12 +626,12 @@ class Game {
         const shockwaveRadius = 200;
         const shooterY = this.canvas.height - 50;
         
-        // 모든 벽돌에 대미지
-        for (const brick of this.bricks) {
-            brick.hp -= shockwaveDamage;
+        // 모든 볶음밥에 대미지
+        for (const rice of this.friedRice) {
+            rice.hp -= shockwaveDamage;
             
             // 진동파 이펙트
-            this.createParticles(brick.x + brick.width / 2, brick.y + brick.height / 2, '#ff00ff', 5);
+            this.createParticles(rice.x + rice.width / 2, rice.y + rice.height / 2, '#ff00ff', 5);
         }
         
         // 화면에 진동파 비주얼
@@ -733,17 +731,17 @@ class Game {
         
         if (this.state !== GameState.PLAYING) return;
         
-        // 벽돌 렌더링 (아이템 없는 벽돌 먼저)
-        const bricksWithItem = [];
+        // 볶음밥 렌더링 (아이템 없는 볶음밥 먼저)
+        const ricesWithItem = [];
         
-        for (const brick of this.bricks) {
-            if (brick.item) {
-                bricksWithItem.push(brick);
+        for (const rice of this.friedRice) {
+            if (rice.item) {
+                ricesWithItem.push(rice);
                 continue;
             }
             
-            // 아이템 없는 벽돌 렌더링
-            this.drawBrick(brick);
+            // 아이템 없는 볶음밥 렌더링
+            this.drawFriedRice(rice);
         }
         
         // 보스 렌더링
@@ -751,9 +749,9 @@ class Game {
             this.drawBoss(this.boss);
         }
         
-        // 구슬
-        for (const ball of this.balls) {
-            this.drawBall(ball);
+        // 주걡
+        for (const spatula of this.spatulas) {
+            this.drawSpatula(spatula);
         }
         
         // 파티클
@@ -766,9 +764,9 @@ class Game {
             this.ctx.globalAlpha = 1;
         }
         
-        // 아이템 있는 벽돌 (전면에 표시)
-        for (const brick of bricksWithItem) {
-            this.drawBrickWithItem(brick);
+        // 아이템 있는 볶음밥 (전면에 표시)
+        for (const rice of ricesWithItem) {
+            this.drawFriedRiceWithItem(rice);
         }
         
         // 드롭 아이템 렌더링
@@ -1345,23 +1343,23 @@ class Game {
     }
     
     // 벽돌 렌더링 (최적화)
-    drawBrick(brick) {
-        const hpPercent = brick.hp / brick.maxHP;
+    drawFriedRice(rice) {
+        const hpPercent = rice.hp / rice.maxHP;
         const color = `hsl(${hpPercent * 120}, 70%, 50%)`;
         
         this.ctx.fillStyle = color;
-        this.ctx.fillRect(brick.x, brick.y, brick.width, brick.height);
+        this.ctx.fillRect(rice.x, rice.y, rice.width, rice.height);
         
         this.ctx.strokeStyle = '#fff';
         this.ctx.lineWidth = 2;
-        this.ctx.strokeRect(brick.x, brick.y, brick.width, brick.height);
+        this.ctx.strokeRect(rice.x, rice.y, rice.width, rice.height);
         
         // HP 표시
         this.ctx.fillStyle = '#fff';
         this.ctx.font = 'bold 18px Arial';
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
-        this.ctx.fillText(brick.hp, brick.x + brick.width / 2, brick.y + brick.height / 2);
+        this.ctx.fillText(rice.hp, rice.x + rice.width / 2, rice.y + rice.height / 2);
     }
     
     // 보스 렌더링
@@ -1442,65 +1440,65 @@ class Game {
         }
     }
     
-    // 아이템이 있는 벽돌 렌더링 (전면)
-    drawBrickWithItem(brick) {
-        const hpPercent = brick.hp / brick.maxHP;
+    // 아이템이 있는 볶음밥 렌더링 (전면)
+    drawFriedRiceWithItem(rice) {
+        const hpPercent = rice.hp / rice.maxHP;
         const color = `hsl(${hpPercent * 120}, 70%, 50%)`;
         
-        // 아이템 있는 벽돌은 더 밝게
+        // 아이템 있는 볶음밥은 더 밝게
         this.ctx.fillStyle = color;
         this.ctx.globalAlpha = 0.9;
-        this.ctx.fillRect(brick.x, brick.y, brick.width, brick.height);
+        this.ctx.fillRect(rice.x, rice.y, rice.width, rice.height);
         this.ctx.globalAlpha = 1;
         
         // 굵은 테두리
         this.ctx.strokeStyle = '#ffff00';
         this.ctx.lineWidth = 3;
-        this.ctx.strokeRect(brick.x, brick.y, brick.width, brick.height);
+        this.ctx.strokeRect(rice.x, rice.y, rice.width, rice.height);
         
         // HP 표시
         this.ctx.fillStyle = '#fff';
         this.ctx.font = 'bold 18px Arial';
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
-        this.ctx.fillText(brick.hp, brick.x + brick.width / 2, brick.y + brick.height / 2 - 10);
+        this.ctx.fillText(rice.hp, rice.x + rice.width / 2, rice.y + rice.height / 2 - 10);
         
         // 아이템 이모지 표시
         let emoji = '';
-        if (brick.item === 'slowTime') {
+        if (rice.item === 'slowTime') {
             emoji = '⏸️';
         }
         
         if (emoji) {
             this.ctx.font = 'bold 20px Arial';
-            this.ctx.fillText(emoji, brick.x + brick.width / 2, brick.y + brick.height / 2 + 12);
+            this.ctx.fillText(emoji, rice.x + rice.width / 2, rice.y + rice.height / 2 + 12);
         }
     }
     
-    // 공 렌더링 (최적화)
-    drawBall(ball) {
-        const gradient = this.ctx.createRadialGradient(ball.x, ball.y, 0, ball.x, ball.y, ball.radius);
-        const ballColor = ball.color || '#4facfe';
-        gradient.addColorStop(0, ballColor);
-        gradient.addColorStop(1, ballColor);
+    // 주걡 렌더링 (최적화)
+    drawSpatula(spatula) {
+        const gradient = this.ctx.createRadialGradient(spatula.x, spatula.y, 0, spatula.x, spatula.y, spatula.radius);
+        const spatulaColor = spatula.color || '#FF6B35';
+        gradient.addColorStop(0, spatulaColor);
+        gradient.addColorStop(1, spatulaColor);
         
         this.ctx.fillStyle = gradient;
         this.ctx.beginPath();
-        this.ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+        this.ctx.arc(spatula.x, spatula.y, spatula.radius, 0, Math.PI * 2);
         this.ctx.fill();
         
         this.ctx.strokeStyle = '#fff';
         this.ctx.lineWidth = 2;
         this.ctx.stroke();
         
-        // 소용돌이 효과: 공 주위 원 회전
-        if (this.whirlwindActive && ball.rotation !== undefined) {
-            ball.rotation = (ball.rotation || 0) + 0.1;
+        // 소용돌이 효과: 주걡 주위 원 회전
+        if (this.whirlwindActive && spatula.rotation !== undefined) {
+            spatula.rotation = (spatula.rotation || 0) + 0.1;
             this.ctx.strokeStyle = 'rgba(200, 100, 255, 0.3)';
             this.ctx.lineWidth = 1;
             this.ctx.setLineDash([5, 5]);
             this.ctx.beginPath();
-            this.ctx.arc(ball.x, ball.y, ball.radius * 2.5, 0, Math.PI * 2);
+            this.ctx.arc(spatula.x, spatula.y, spatula.radius * 2.5, 0, Math.PI * 2);
             this.ctx.stroke();
             this.ctx.setLineDash([]);
         }
