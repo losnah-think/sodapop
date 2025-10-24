@@ -6,6 +6,22 @@ const GameState = {
     GAME_OVER: 'game_over'
 };
 
+// roundRect polyfill (구형 브라우저 지원)
+if (!CanvasRenderingContext2D.prototype.roundRect) {
+    CanvasRenderingContext2D.prototype.roundRect = function(x, y, width, height, radius) {
+        this.moveTo(x + radius, y);
+        this.lineTo(x + width - radius, y);
+        this.quadraticCurveTo(x + width, y, x + width, y + radius);
+        this.lineTo(x + width, y + height - radius);
+        this.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+        this.lineTo(x + radius, y + height);
+        this.quadraticCurveTo(x, y + height, x, y + height - radius);
+        this.lineTo(x, y + radius);
+        this.quadraticCurveTo(x, y, x + radius, y);
+        this.closePath();
+    };
+}
+
 // 게임 클래스
 class Game {
     constructor() {
@@ -234,45 +250,45 @@ class Game {
     }
     
     spawnBoss() {
-        // 보스 타입 정의
+        // 볶음밥 보스 타입 정의
         const bossTypes = {
-            TANK: {
-                name: '탱크 보스',
-                emoji: '🗿',
-                color: '#8B4513',
+            KIMCHI: {
+                name: '김치볶음밥',
+                emoji: '🌶️',
+                color: '#FF4500',
                 hpMultiplier: 2.0,  // 체력이 많음
                 speedMultiplier: 0.5,  // 느림
                 pattern: 'tank'
             },
-            SPEED: {
-                name: '속도 보스',
-                emoji: '🏃',
+            SEAFOOD: {
+                name: '해물볶음밥',
+                emoji: '🦐',
                 color: '#FF6347',
                 hpMultiplier: 0.8,  // 체력이 적음
                 speedMultiplier: 2.0,  // 빠름
                 pattern: 'speed'
             },
-            SHIELD: {
-                name: '실드 보스',
-                emoji: '🛡️',
-                color: '#4169E1',
+            CURRY: {
+                name: '카레볶음밥',
+                emoji: '🍛',
+                color: '#DAA520',
                 hpMultiplier: 1.5,  // 중간 체력
                 speedMultiplier: 1.0,
                 pattern: 'shield',
                 shieldHP: null  // 별도 실드 체력
             },
-            SPLITTER: {
-                name: '분할 보스',
-                emoji: '👯',
-                color: '#9932CC',
+            VEGETABLE: {
+                name: '야채볶음밥',
+                emoji: '🥬',
+                color: '#32CD32',
                 hpMultiplier: 1.2,  // 중간 체력
                 speedMultiplier: 1.0,
                 pattern: 'splitter'
             },
-            REGENERATE: {
-                name: '재생 보스',
-                emoji: '🧬',
-                color: '#00FF00',
+            CHEESE: {
+                name: '치즈볶음밥',
+                emoji: '�',
+                color: '#FFD700',
                 hpMultiplier: 1.3,
                 speedMultiplier: 0.7,
                 pattern: 'regenerate'
@@ -1342,24 +1358,73 @@ class Game {
         }
     }
     
-    // 벽돌 렌더링 (최적화)
+    // 볶음밥 렌더링 (개선)
     drawFriedRice(rice) {
         const hpPercent = rice.hp / rice.maxHP;
         const color = `hsl(${hpPercent * 120}, 70%, 50%)`;
         
+        // 배경
         this.ctx.fillStyle = color;
-        this.ctx.fillRect(rice.x, rice.y, rice.width, rice.height);
+        this.ctx.beginPath();
+        this.ctx.roundRect(rice.x, rice.y, rice.width, rice.height, 8);
+        this.ctx.fill();
         
+        // 볶음밥 이모지
+        this.ctx.font = 'bold 24px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText('🍚', rice.x + rice.width / 2, rice.y + rice.height / 2 - 8);
+        
+        // 테두리
         this.ctx.strokeStyle = '#fff';
         this.ctx.lineWidth = 2;
-        this.ctx.strokeRect(rice.x, rice.y, rice.width, rice.height);
+        this.ctx.beginPath();
+        this.ctx.roundRect(rice.x, rice.y, rice.width, rice.height, 8);
+        this.ctx.stroke();
         
         // HP 표시
         this.ctx.fillStyle = '#fff';
-        this.ctx.font = 'bold 18px Arial';
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
-        this.ctx.fillText(rice.hp, rice.x + rice.width / 2, rice.y + rice.height / 2);
+        this.ctx.font = 'bold 12px Arial';
+        this.ctx.shadowColor = 'rgba(0,0,0,0.8)';
+        this.ctx.shadowBlur = 4;
+        this.ctx.fillText(Math.ceil(rice.hp), rice.x + rice.width / 2, rice.y + rice.height - 8);
+        this.ctx.shadowBlur = 0;
+    }
+    
+    // 볶음밥 SVG 그리기
+    drawFriedRiceSVG(ctx, x, y, size, color) {
+        const scale = size / 100;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.scale(scale, scale);
+        
+        // 밥알들 (여러 개의 작은 원)
+        ctx.fillStyle = color;
+        const riceGrains = [
+            [30, 40], [50, 35], [70, 40], [40, 55], [60, 55], [50, 70],
+            [35, 25], [65, 25], [45, 45], [55, 48], [40, 70], [70, 55]
+        ];
+        
+        riceGrains.forEach(([rx, ry]) => {
+            ctx.beginPath();
+            ctx.ellipse(rx, ry, 8 + Math.random() * 3, 6 + Math.random() * 2, Math.random() * Math.PI, 0, Math.PI * 2);
+            ctx.fill();
+        });
+        
+        // 그릇 테두리
+        ctx.strokeStyle = '#8B4513';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.arc(50, 50, 45, 0, Math.PI * 2);
+        ctx.stroke();
+        
+        // 하이라이트
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.beginPath();
+        ctx.ellipse(35, 30, 15, 8, -0.5, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.restore();
     }
     
     // 보스 렌더링
@@ -1367,38 +1432,45 @@ class Game {
         const hpPercent = Math.max(0, boss.hp / boss.maxHP);
         const color = boss.type.color;
         
-        // 보스 본체 (타입별 색상)
-        this.ctx.fillStyle = color;
-        this.ctx.globalAlpha = 0.8;
-        this.ctx.fillRect(boss.x, boss.y, boss.width, boss.height);
-        this.ctx.globalAlpha = 1;
+        // 보스 배경 (둥근 사각형)
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        this.ctx.beginPath();
+        this.ctx.roundRect(boss.x - 10, boss.y - 10, boss.width + 20, boss.height + 20, 20);
+        this.ctx.fill();
+        
+        // 볶음밥 SVG 그리기
+        this.drawFriedRiceSVG(this.ctx, boss.x + boss.width / 2 - 50, boss.y + boss.height / 2 - 50, 100, color);
         
         // 굵은 테두리 (강조)
         this.ctx.strokeStyle = '#ffff00';
         this.ctx.lineWidth = 4;
-        this.ctx.strokeRect(boss.x, boss.y, boss.width, boss.height);
+        this.ctx.beginPath();
+        this.ctx.roundRect(boss.x, boss.y, boss.width, boss.height, 15);
+        this.ctx.stroke();
         
-        // 보스 아이콘
-        this.ctx.font = 'bold 40px Arial';
+        // 보스 이모지 오버레이
+        this.ctx.font = 'bold 50px Arial';
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
         this.ctx.fillText(boss.type.emoji, boss.x + boss.width / 2, boss.y + boss.height / 2);
         
         // 실드 보스: 실드 표시
         if (boss.pattern === 'shield' && boss.shieldHP > 0) {
-            const shieldPercent = boss.shieldHP / boss.maxShieldHP;
             const shieldSize = 80;
-            const shieldX = boss.x + boss.width / 2 - shieldSize / 2;
-            const shieldY = boss.y + boss.height / 2 - shieldSize / 2;
             
             // 실드 원형
             this.ctx.strokeStyle = '#4169E1';
-            this.ctx.lineWidth = 3;
+            this.ctx.lineWidth = 4;
             this.ctx.globalAlpha = 0.6;
             this.ctx.beginPath();
             this.ctx.arc(boss.x + boss.width / 2, boss.y + boss.height / 2, shieldSize, 0, Math.PI * 2);
             this.ctx.stroke();
             this.ctx.globalAlpha = 1;
+            
+            // 실드 HP 표시
+            this.ctx.fillStyle = '#4169E1';
+            this.ctx.font = 'bold 12px Arial';
+            this.ctx.fillText(`🛡️ ${Math.ceil(boss.shieldHP)}`, boss.x + boss.width / 2, boss.y + boss.height + 30);
         }
         
         // HP 바 (상단)
@@ -1429,8 +1501,8 @@ class Game {
         
         // 패턴 표시
         let patternText = '';
-        if (boss.pattern === 'regenerate') patternText = 'REGENERATING';
-        if (boss.pattern === 'speed') patternText = 'MOVING';
+        if (boss.pattern === 'regenerate') patternText = '재생중';
+        if (boss.pattern === 'speed') patternText = '고속이동';
         
         if (patternText) {
             this.ctx.fillStyle = '#ffff00';
@@ -1443,25 +1515,36 @@ class Game {
     // 아이템이 있는 볶음밥 렌더링 (전면)
     drawFriedRiceWithItem(rice) {
         const hpPercent = rice.hp / rice.maxHP;
-        const color = `hsl(${hpPercent * 120}, 70%, 50%)`;
+        const color = `hsl(${hpPercent * 120}, 80%, 60%)`;
         
-        // 아이템 있는 볶음밥은 더 밝게
+        // 반짝이는 효과
+        const time = Date.now() / 500;
+        const glow = Math.sin(time) * 0.3 + 0.7;
+        
+        // 발광 효과
+        this.ctx.shadowColor = '#ffff00';
+        this.ctx.shadowBlur = 15 * glow;
+        
+        // 배경
         this.ctx.fillStyle = color;
-        this.ctx.globalAlpha = 0.9;
-        this.ctx.fillRect(rice.x, rice.y, rice.width, rice.height);
-        this.ctx.globalAlpha = 1;
+        this.ctx.beginPath();
+        this.ctx.roundRect(rice.x, rice.y, rice.width, rice.height, 8);
+        this.ctx.fill();
+        
+        this.ctx.shadowBlur = 0;
+        
+        // 볶음밥 이모지
+        this.ctx.font = 'bold 24px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText('🍚', rice.x + rice.width / 2, rice.y + rice.height / 2 - 12);
         
         // 굵은 테두리
         this.ctx.strokeStyle = '#ffff00';
         this.ctx.lineWidth = 3;
-        this.ctx.strokeRect(rice.x, rice.y, rice.width, rice.height);
-        
-        // HP 표시
-        this.ctx.fillStyle = '#fff';
-        this.ctx.font = 'bold 18px Arial';
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
-        this.ctx.fillText(rice.hp, rice.x + rice.width / 2, rice.y + rice.height / 2 - 10);
+        this.ctx.beginPath();
+        this.ctx.roundRect(rice.x, rice.y, rice.width, rice.height, 8);
+        this.ctx.stroke();
         
         // 아이템 이모지 표시
         let emoji = '';
@@ -1473,25 +1556,43 @@ class Game {
             this.ctx.font = 'bold 20px Arial';
             this.ctx.fillText(emoji, rice.x + rice.width / 2, rice.y + rice.height / 2 + 12);
         }
+        
+        // HP 표시
+        this.ctx.fillStyle = '#fff';
+        this.ctx.font = 'bold 12px Arial';
+        this.ctx.shadowColor = 'rgba(0,0,0,0.8)';
+        this.ctx.shadowBlur = 4;
+        this.ctx.fillText(Math.ceil(rice.hp), rice.x + rice.width / 2, rice.y + rice.height - 8);
+        this.ctx.shadowBlur = 0;
     }
     
-    // 주걡 렌더링 (최적화)
+    // 주걡 렌더링 (개선)
     drawSpatula(spatula) {
-        const gradient = this.ctx.createRadialGradient(spatula.x, spatula.y, 0, spatula.x, spatula.y, spatula.radius);
         const spatulaColor = spatula.color || '#FF6B35';
-        gradient.addColorStop(0, spatulaColor);
-        gradient.addColorStop(1, spatulaColor);
         
-        this.ctx.fillStyle = gradient;
+        // 주걱 손잡이
+        this.ctx.fillStyle = '#8B4513';
+        this.ctx.save();
+        this.ctx.translate(spatula.x, spatula.y);
+        this.ctx.rotate(Math.atan2(spatula.vy, spatula.vx));
+        
+        // 손잡이
+        this.ctx.fillRect(-spatula.radius * 2, -2, spatula.radius * 1.5, 4);
+        
+        // 주걱 머리 부분 (타원형)
+        this.ctx.fillStyle = spatulaColor;
         this.ctx.beginPath();
-        this.ctx.arc(spatula.x, spatula.y, spatula.radius, 0, Math.PI * 2);
+        this.ctx.ellipse(spatula.radius / 2, 0, spatula.radius * 1.2, spatula.radius * 0.8, 0, 0, Math.PI * 2);
         this.ctx.fill();
         
+        // 테두리
         this.ctx.strokeStyle = '#fff';
         this.ctx.lineWidth = 2;
         this.ctx.stroke();
         
-        // 소용돌이 효과: 주걡 주위 원 회전
+        this.ctx.restore();
+        
+        // 소용돌이 효과
         if (this.whirlwindActive && spatula.rotation !== undefined) {
             spatula.rotation = (spatula.rotation || 0) + 0.1;
             this.ctx.strokeStyle = 'rgba(200, 100, 255, 0.3)';
