@@ -530,15 +530,15 @@ class Game {
                         this.triggerChainLightning(rice);
                     }
                     
-                    if (brick.hp <= 0) {
-                        // 벽돌 파괴
+                    if (rice.hp <= 0) {
+                        // 볶음밥 파괴
                         
                         const now = Date.now();
                         let baseScore = 10 * (1 + this.level * 0.5);  // 레벨에 따라 점수 증가
                         this.score += Math.floor(baseScore);
                         
                         // 점수 플로팅 텍스트
-                        this.addFloatingText(`+${Math.floor(baseScore)}`, brick.x + brick.width / 2, brick.y, '#ffd700', 16, 800);
+                        this.addFloatingText(`+${Math.floor(baseScore)}`, rice.x + rice.width / 2, rice.y, '#ffd700', 16, 800);
                         
                         // 경험치 획득
                         const expGain = Math.floor(10 + this.level * 2);  // 레벨에 따라 경험치 증가
@@ -551,20 +551,20 @@ class Game {
                         
                         this.updateUI();
                         
-                        // 아이템이 포함된 벽돌이면 바로 효과 적용
-                        if (brick.item) {
-                            this.collectItem(brick.item);
+                        // 아이템이 포함된 볶음밥이면 바로 효과 적용
+                        if (rice.item) {
+                            this.collectItem(rice.item);
                             // 아이템 획득 파티클
-                            this.createParticles(brick.x + brick.width / 2, brick.y + brick.height / 2, '#00ff00', 15);
+                            this.createParticles(rice.x + rice.width / 2, rice.y + rice.height / 2, '#00ff00', 15);
                         }
                         
                         // 폭발 효과
                         if (this.explosionRadius > 0) {
-                            this.explode(brick.x + brick.width / 2, brick.y + brick.height / 2);
+                            this.explode(rice.x + rice.width / 2, rice.y + rice.height / 2);
                         }
                         
-                        this.createParticles(brick.x + brick.width / 2, brick.y + brick.height / 2, '#ff6b6b', 20);
-                        this.bricks.splice(j, 1);
+                        this.createParticles(rice.x + rice.width / 2, rice.y + rice.height / 2, '#ff6b6b', 20);
+                        this.friedRice.splice(j, 1);
                     }
                     
                     hit = true;
