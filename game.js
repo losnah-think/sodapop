@@ -204,6 +204,7 @@ class Game {
     
     onPointerDown(e) {
         if (this.state !== GameState.PLAYING) return;
+        e.preventDefault();
     }
     
     onPointerMove(e) {
@@ -218,6 +219,7 @@ class Game {
     
     onPointerUp(e) {
         if (this.state !== GameState.PLAYING) return;
+        e.preventDefault();
     }
     
     fire() {
@@ -1107,6 +1109,8 @@ class Game {
                 `;
                 
                 card.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
                     card.style.pointerEvents = 'none';
                     upgrade.effect();
                     
@@ -1118,7 +1122,7 @@ class Game {
                     this.currentUpgrades = [];
                     document.getElementById('stageclear-screen').classList.add('hidden');
                     this.state = GameState.PLAYING;
-                    this.lastBrickSpawn = Date.now();
+                    this.lastFriedRiceSpawn = Date.now();
                 });
                 
                 cardContainer.appendChild(card);
