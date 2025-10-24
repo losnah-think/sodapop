@@ -772,13 +772,33 @@ class Game {
             this.drawSpatula(spatula);
         }
         
-        // 파티클
+        // 파티클 (3D 효과)
         for (const p of this.particles) {
-            this.ctx.fillStyle = p.color;
+            // 그림자
+            this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+            this.ctx.globalAlpha = p.life * 0.5;
+            this.ctx.beginPath();
+            this.ctx.arc(p.x + 2, p.y + 2, p.radius, 0, Math.PI * 2);
+            this.ctx.fill();
+            
+            // 파티클 본체
+            const gradient = this.ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius);
+            gradient.addColorStop(0, p.color);
+            gradient.addColorStop(0.5, p.color);
+            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            this.ctx.fillStyle = gradient;
             this.ctx.globalAlpha = p.life;
             this.ctx.beginPath();
             this.ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
             this.ctx.fill();
+            
+            // 하이라이트
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+            this.ctx.globalAlpha = p.life * 0.8;
+            this.ctx.beginPath();
+            this.ctx.arc(p.x - p.radius * 0.3, p.y - p.radius * 0.3, p.radius * 0.4, 0, Math.PI * 2);
+            this.ctx.fill();
+            
             this.ctx.globalAlpha = 1;
         }
         
@@ -1362,13 +1382,39 @@ class Game {
         }
     }
     
-    // 볶음밥 렌더링 (개선)
+    // 볶음밥 렌더링 (2.5D 효과)
     drawFriedRice(rice) {
         const hpPercent = rice.hp / rice.maxHP;
         const color = `hsl(${hpPercent * 120}, 70%, 50%)`;
         
-        // 배경
+        // 3D 그림자 효과
+        const shadowOffset = 6;
+        const depth = 4;
+        
+        // 측면 그림자 (깊이감)
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+        this.ctx.beginPath();
+        this.ctx.roundRect(rice.x + shadowOffset, rice.y + shadowOffset, rice.width, rice.height, 8);
+        this.ctx.fill();
+        
+        // 3D 측면 효과
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        for (let i = depth; i > 0; i--) {
+            this.ctx.fillRect(rice.x + i, rice.y + i, rice.width, rice.height);
+        }
+        
+        // 메인 배경
         this.ctx.fillStyle = color;
+        this.ctx.beginPath();
+        this.ctx.roundRect(rice.x, rice.y, rice.width, rice.height, 8);
+        this.ctx.fill();
+        
+        // 하이라이트 (3D 느낌)
+        const gradient = this.ctx.createLinearGradient(rice.x, rice.y, rice.x, rice.y + rice.height);
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 0.3)');
+        gradient.addColorStop(0.5, 'rgba(255, 255, 255, 0)');
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 0.2)');
+        this.ctx.fillStyle = gradient;
         this.ctx.beginPath();
         this.ctx.roundRect(rice.x, rice.y, rice.width, rice.height, 8);
         this.ctx.fill();
@@ -1431,13 +1477,31 @@ class Game {
         ctx.restore();
     }
     
-    // 보스 렌더링
+    // 보스 렌더링 (2.5D 효과)
     drawBoss(boss) {
         const hpPercent = Math.max(0, boss.hp / boss.maxHP);
         const color = boss.type.color;
         
-        // 보스 배경 (둥근 사각형)
-        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        // 3D 그림자 효과
+        const shadowOffset = 12;
+        const depth = 8;
+        
+        // 큰 그림자
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        this.ctx.beginPath();
+        this.ctx.roundRect(boss.x + shadowOffset, boss.y + shadowOffset, boss.width, boss.height, 20);
+        this.ctx.fill();
+        
+        // 깊이감
+        for (let i = depth; i > 0; i--) {
+            this.ctx.fillStyle = `rgba(0, 0, 0, ${0.1 - i * 0.01})`;
+            this.ctx.beginPath();
+            this.ctx.roundRect(boss.x + i, boss.y + i, boss.width, boss.height, 20);
+            this.ctx.fill();
+        }
+        
+        // 보스 배경
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
         this.ctx.beginPath();
         this.ctx.roundRect(boss.x - 10, boss.y - 10, boss.width + 20, boss.height + 20, 20);
         this.ctx.fill();
@@ -1445,24 +1509,50 @@ class Game {
         // 볶음밥 SVG 그리기
         this.drawFriedRiceSVG(this.ctx, boss.x + boss.width / 2 - 50, boss.y + boss.height / 2 - 50, 100, color);
         
-        // 굵은 테두리 (강조)
+        // 하이라이트 (3D 입체감)
+        const gradient = this.ctx.createRadialGradient(
+            boss.x + boss.width / 2, boss.y + boss.height / 4,
+            0,
+            boss.x + boss.width / 2, boss.y + boss.height / 2,
+            boss.width / 2
+        );
+        gradient.addColorStop(0, 'rgba(255, 255, 255, 0.2)');
+        gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        this.ctx.fillStyle = gradient;
+        this.ctx.beginPath();
+        this.ctx.roundRect(boss.x, boss.y, boss.width, boss.height, 15);
+        this.ctx.fill();
+        
+        // 굵은 테두리 (강조) - 발광 효과
+        this.ctx.shadowColor = '#ffff00';
+        this.ctx.shadowBlur = 15;
         this.ctx.strokeStyle = '#ffff00';
         this.ctx.lineWidth = 4;
         this.ctx.beginPath();
         this.ctx.roundRect(boss.x, boss.y, boss.width, boss.height, 15);
         this.ctx.stroke();
+        this.ctx.shadowBlur = 0;
         
         // 보스 이모지 오버레이
         this.ctx.font = 'bold 50px Arial';
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'middle';
+        this.ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+        this.ctx.shadowBlur = 8;
+        this.ctx.shadowOffsetX = 3;
+        this.ctx.shadowOffsetY = 3;
         this.ctx.fillText(boss.type.emoji, boss.x + boss.width / 2, boss.y + boss.height / 2);
+        this.ctx.shadowBlur = 0;
+        this.ctx.shadowOffsetX = 0;
+        this.ctx.shadowOffsetY = 0;
         
         // 실드 보스: 실드 표시
         if (boss.pattern === 'shield' && boss.shieldHP > 0) {
             const shieldSize = 80;
             
-            // 실드 원형
+            // 실드 원형 (발광 효과)
+            this.ctx.shadowColor = '#4169E1';
+            this.ctx.shadowBlur = 20;
             this.ctx.strokeStyle = '#4169E1';
             this.ctx.lineWidth = 4;
             this.ctx.globalAlpha = 0.6;
@@ -1470,6 +1560,7 @@ class Game {
             this.ctx.arc(boss.x + boss.width / 2, boss.y + boss.height / 2, shieldSize, 0, Math.PI * 2);
             this.ctx.stroke();
             this.ctx.globalAlpha = 1;
+            this.ctx.shadowBlur = 0;
             
             // 실드 HP 표시
             this.ctx.fillStyle = '#4169E1';
@@ -1570,18 +1661,43 @@ class Game {
         this.ctx.shadowBlur = 0;
     }
     
-    // 주걡 렌더링 (개선)
+    // 주걡 렌더링 (2.5D 효과)
     drawSpatula(spatula) {
         const spatulaColor = spatula.color || '#FF6B35';
         
-        // 주걱 손잡이
-        this.ctx.fillStyle = '#8B4513';
         this.ctx.save();
         this.ctx.translate(spatula.x, spatula.y);
         this.ctx.rotate(Math.atan2(spatula.vy, spatula.vx));
         
-        // 손잡이
+        // 3D 그림자 효과
+        this.ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+        this.ctx.shadowBlur = 10;
+        this.ctx.shadowOffsetX = 3;
+        this.ctx.shadowOffsetY = 3;
+        
+        // 손잡이 깊이감
+        const handleDepth = 2;
+        for (let i = handleDepth; i > 0; i--) {
+            this.ctx.fillStyle = `rgba(139, 69, 19, ${0.8 - i * 0.2})`;
+            this.ctx.fillRect(-spatula.radius * 2 + i, -2 + i, spatula.radius * 1.5, 4);
+        }
+        
+        // 주걱 손잡이
+        this.ctx.fillStyle = '#8B4513';
         this.ctx.fillRect(-spatula.radius * 2, -2, spatula.radius * 1.5, 4);
+        
+        // 손잡이 하이라이트
+        this.ctx.fillStyle = 'rgba(205, 133, 63, 0.6)';
+        this.ctx.fillRect(-spatula.radius * 2, -2, spatula.radius * 1.5, 1.5);
+        
+        // 주걱 머리 깊이감
+        const headDepth = 3;
+        for (let i = headDepth; i > 0; i--) {
+            this.ctx.fillStyle = `rgba(255, 107, 53, ${0.4 - i * 0.1})`;
+            this.ctx.beginPath();
+            this.ctx.ellipse(spatula.radius / 2 + i, i, spatula.radius * 1.2, spatula.radius * 0.8, 0, 0, Math.PI * 2);
+            this.ctx.fill();
+        }
         
         // 주걱 머리 부분 (타원형)
         this.ctx.fillStyle = spatulaColor;
@@ -1589,7 +1705,23 @@ class Game {
         this.ctx.ellipse(spatula.radius / 2, 0, spatula.radius * 1.2, spatula.radius * 0.8, 0, 0, Math.PI * 2);
         this.ctx.fill();
         
+        // 하이라이트 (3D 입체감)
+        const gradient = this.ctx.createRadialGradient(
+            spatula.radius / 2 - 2, -2, 0,
+            spatula.radius / 2, 0, spatula.radius
+        );
+        gradient.addColorStop(0, 'rgba(255, 200, 150, 0.6)');
+        gradient.addColorStop(0.5, 'rgba(255, 107, 53, 0)');
+        gradient.addColorStop(1, 'rgba(139, 69, 19, 0.3)');
+        this.ctx.fillStyle = gradient;
+        this.ctx.beginPath();
+        this.ctx.ellipse(spatula.radius / 2, 0, spatula.radius * 1.2, spatula.radius * 0.8, 0, 0, Math.PI * 2);
+        this.ctx.fill();
+        
         // 테두리
+        this.ctx.shadowBlur = 0;
+        this.ctx.shadowOffsetX = 0;
+        this.ctx.shadowOffsetY = 0;
         this.ctx.strokeStyle = '#fff';
         this.ctx.lineWidth = 2;
         this.ctx.stroke();

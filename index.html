@@ -44,6 +44,8 @@ body {
     border-radius: 20px;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
     overflow: hidden;
+    transform-style: preserve-3d;
+    perspective: 1200px;
 }
 
 /* 게임 UI */
@@ -100,6 +102,8 @@ body {
     width: 100%;
     height: 100%;
     background: #0f0f1e;
+    transform-style: preserve-3d;
+    perspective: 1000px;
 }
 
 /* 차징 바 */
@@ -254,6 +258,8 @@ body {
     transition: all 0.3s;
     position: relative;
     overflow: hidden;
+    transform-style: preserve-3d;
+    transform: translateZ(0);
 }
 
 .upgrade-card::before {
@@ -269,9 +275,9 @@ body {
 }
 
 .upgrade-card:hover {
-    transform: translateY(-10px) scale(1.05);
+    transform: translateY(-10px) scale(1.05) rotateX(5deg) translateZ(20px);
     border-color: #ffd700;
-    box-shadow: 0 10px 30px rgba(255, 215, 0, 0.3);
+    box-shadow: 0 15px 40px rgba(255, 215, 0, 0.4), 0 0 20px rgba(255, 215, 0, 0.2);
 }
 
 .upgrade-card:hover::before {
